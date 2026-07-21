@@ -72,7 +72,8 @@
   thead th.no-sort{cursor:default}
   tbody td{padding:8px 10px;border-bottom:1px solid #eef1f5;vertical-align:top;background:var(--row,transparent)}
   tbody tr:hover td{filter:brightness(.975)}
-  tr.crit td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+  tr.crit td{background:#f8d2ce}
+  tr.crit td:first-child{box-shadow:inset 4px 0 0 var(--red)}
   .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:8px 13px;border-bottom:1px solid var(--line);background:#fff;font-size:11px;color:var(--muted)}
   .legend i{display:inline-block;width:22px;height:11px;border-radius:3px;border:1px solid var(--line);margin-right:5px;vertical-align:-2px;font-style:normal}
   .datefilter{display:flex;align-items:center;gap:5px;font-size:12px;color:#41506b;white-space:nowrap}
@@ -86,6 +87,7 @@
   .b-blue{background:var(--blue-bg);color:var(--blue);border-color:#cbdff5}
   .b-amber{background:var(--amber-bg);color:var(--amber);border-color:#f2dfb8}
   .b-green{background:var(--green-bg);color:var(--green);border-color:#c4e6d3}
+  .b-green-dark{background:#157347;color:#fff;border-color:#0f5c37}
   .b-purple{background:var(--purple-bg);color:var(--purple);border-color:#ddd2f5}
   .b-red{background:var(--red-bg);color:var(--red);border-color:#f5cfca}
   .newbar{margin-bottom:12px}
@@ -177,6 +179,54 @@
   .rolebox b{font-size:12px}
   .rolebox p{margin:3px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
   @media(max-width:900px){.form{grid-template-columns:repeat(2,1fr)}.f.span4{grid-column:span 2}.admgrid{grid-template-columns:1fr}}
+
+  /* ===== MOBIL: tabulka -> karty, formulář a filtry do jednoho sloupce ===== */
+  @media(max-width:680px){
+    header{padding:10px 12px;gap:10px}
+    header h1{font-size:19px}
+    .chips{gap:6px}
+    main{padding:12px 10px 34px}
+    .newbar .btn-new{width:100%;font-size:17px;padding:15px 20px}
+
+    /* filtry pod sebe */
+    .filters{flex-direction:column;align-items:stretch;gap:9px}
+    .filters input,.filters select,.filters .grow{width:100%;min-width:0}
+    .filters .datefilter{justify-content:space-between}
+    .filters .datefilter input{flex:1}
+    .filters .btn-ghost{width:100%}
+
+    /* tabulka jako karty */
+    .tblwrap{overflow-x:visible}
+    table{white-space:normal}
+    thead{display:none}
+    tbody tr{display:block;border:1px solid var(--line);border-left:5px solid var(--line);
+      border-radius:8px;margin:0 0 11px;padding:6px 12px;background:var(--row,#fff);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    tr.crit td:first-child{box-shadow:none}
+    tr.crit{border-left-color:var(--red)}
+    tbody td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+      padding:6px 0;border:0;border-bottom:1px solid #eef1f5;background:none;white-space:normal;text-align:right}
+    tbody td:last-child{border-bottom:0}
+    tbody td::before{content:attr(data-label);font-weight:700;color:var(--muted);
+      text-align:left;flex:none;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px}
+    tbody td.desc{flex-direction:column;text-align:left}
+    tbody td.desc::before{margin-bottom:2px}
+    td.desc{max-width:none;min-width:0}
+    .hide-mobile{display:none}
+    tbody tr:hover td{filter:none}
+    .empty{display:block;text-align:center}
+    .empty::before{content:''}
+
+    /* okno požadavku přes celou šířku, jeden sloupec */
+    .overlay{padding:8px}
+    .modal{border-radius:8px}
+    .form{grid-template-columns:1fr;padding:14px}
+    .f.span2,.f.span4,.stockbox{grid-column:span 1}
+    .modal .foot .r{width:100%}
+    .modal .foot .r button{flex:1}
+
+    /* administrace do jednoho sloupce */
+    .admgrid{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
@@ -228,11 +278,12 @@ function logoSvg(){
 
 const STATUSES = [
   {k:'poptáno',cls:'b-grey'},{k:'nový',cls:'b-blue'},{k:'ve schvalování',cls:'b-amber'},
-  {k:'schváleno',cls:'b-green'},{k:'odesláno',cls:'b-purple'},{k:'doručeno',cls:'b-green'},{k:'zamítnuto',cls:'b-red'}
+  {k:'schváleno',cls:'b-green'},{k:'odesláno',cls:'b-purple'},{k:'doručeno',cls:'b-green-dark'},{k:'zamítnuto',cls:'b-red'}
 ];
 const PRIORITIES = [
   {k:'kritická',cls:'b-red'},{k:'vysoká',cls:'b-amber'},{k:'běžná',cls:'b-blue'},{k:'nízká',cls:'b-grey'}
 ];
+const TYPES = ['Nový požadavek','Doplnění skladu'];
 const ROLES = {
   zadavatel:   {label:'Zadavatel',    lvl:1, edit:false, approve:false, del:false, admin:false,
                 popis:'Zakládá požadavky, hledá a sleduje jejich stav. Po odeslání už požadavek needituje.'},
@@ -301,7 +352,7 @@ const dateCz = d => d ? String(d).slice(0,10).split('-').reverse().map(x=>String
 const acc = c => (cfg?.accounts||[]).find(a=>a.code===c);
 const accName = c => (acc(c)||{}).name || '';
 const accLabel = c => c ? (accName(c)?c+' — '+accName(c):c) : '';
-const ROW_TINT = {'poptáno':'#f6f7f9','nový':'#ffffff','ve schvalování':'#fdf6e9','schváleno':'#eefaf2','odesláno':'#f5f1fd','doručeno':'#eefaf2','zamítnuto':'#fdf1ef'};
+const ROW_TINT = {'poptáno':'#f6f7f9','nový':'#ffffff','ve schvalování':'#fdf6e9','schváleno':'#eefaf2','odesláno':'#f5f1fd','doručeno':'#bfe6cb','zamítnuto':'#fdf1ef'};
 const needsPoptat = r => (Number(r.cena)||0)===0 && r.status==='nový' && !r.approvedBy;
 const toAskGlobal = () => rows.filter(needsPoptat).length;
 
@@ -536,25 +587,25 @@ function listView(){
         const late=r.datum&&r.datum<today()&&!['doručeno','zamítnuto'].includes(r.status);
         const crit=r.priorita==='kritická'&&!['doručeno','zamítnuto'].includes(r.status);
         return `<tr class="${crit?'crit':''}" style="--row:${ROW_TINT[r.status]||'#fff'};cursor:pointer" data-a="open" data-v="${r._id}" title="Otevřít detail">
-          <td>${badge(r.status,STATUSES)}</td>
-          <td><b>${esc(r.poradove||'—')}</b></td>
-          <td>${esc(dateCz(r.created))}</td>
-          <td>${r.sklad?esc(r.sklad):'<span class="muted">—</span>'}</td>
-          <td class="desc">${esc(r.popis||r.duvod||'')}${r.popis&&r.duvod?`<div class="muted" style="font-size:11px;margin-top:2px">📌 ${esc(r.duvod)}</div>`:''}${r.poznamka?`<div class="muted" style="font-size:11px;margin-top:2px">🗒 ${esc(r.poznamka)}</div>`:''}</td>
-          <td>${badge(r.priorita,PRIORITIES)}</td>
-          <td class="num">${r.mnozstvi}</td>
-          <td class="num">${(Number(r.cena)||0)?num(r.cena)+' '+esc(r.mena):'<span class="badge b-amber">bez ceny</span>'}</td>
-          <td class="num">${(Number(r.cena)||0)?num(total(r))+' '+esc(r.mena):'<span class="muted">—</span>'}</td>
-          <td class="num">${(Number(r.cena)||0)?`<b>${num(totalEur(r))} €</b>`:'<span class="muted">—</span>'}</td>
-          <td>${r.vyrobce?esc(r.vyrobce):'<span class="muted">—</span>'}</td>
-          <td>${r.ucet?`<b>${esc(r.ucet)}</b>${accName(r.ucet)?`<div class="muted" style="font-size:10.5px;white-space:normal;max-width:130px">${esc(accName(r.ucet))}</div>`:''}`:'<span class="muted">—</span>'}</td>
-          <td>${r.usek?`<b>${esc(r.usek)}</b>${r.stroj?`<div class="muted" style="font-size:10.5px">${esc(r.stroj)}</div>`:''}`:'<span class="muted">—</span>'}</td>
-          <td class="${late?'late':''}">${r.datum?esc(dateCz(r.datum))+(late?' ⚠':''):'<span class="muted">—</span>'}</td>
-          <td class="num ${(Number(r.min)||0)>0&&(Number(r.mnozstvi)||0)<Number(r.min)?'stock-warn':''}">${(r.min||r.max)?`${r.min||0} / ${r.max||0}`:'<span class="muted">—</span>'}</td>
-          <td>${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ odkaz</a>`:'<span class="muted">—</span>'}</td>
-          <td>${esc(r.authorName||'—')}</td>
-          <td>${r.approvedBy?`<span class="badge b-green">✔ ${esc(r.approvedBy)}</span><div class="muted" style="font-size:10px">${esc(dateCz(r.approvedAt)||'')}</div>`:'<span class="muted">—</span>'}</td>
-          <td>${P().del?`<button class="rowbtn no" data-a="del" data-v="${r._id}">Smazat</button>`:'<span class="muted">—</span>'}</td>
+          <td data-label="Stav">${badge(r.status,STATUSES)}</td>
+          <td data-label="Č. požadavku"><b>${esc(r.poradove||'—')}</b></td>
+          <td class="hide-mobile" data-label="Vytvořeno">${esc(dateCz(r.created))}</td>
+          <td class="hide-mobile" data-label="Skladové č.">${r.sklad?esc(r.sklad):'<span class="muted">—</span>'}</td>
+          <td class="desc" data-label="Popis">${r.typ==='Doplnění skladu'?`<span class="badge b-purple" style="font-size:9px;margin-right:5px">Doplnění skladu</span>`:''}${esc(r.popis||r.duvod||'')}${r.popis&&r.duvod?`<div class="muted" style="font-size:11px;margin-top:2px">📌 ${esc(r.duvod)}</div>`:''}${r.poznamka?`<div class="muted" style="font-size:11px;margin-top:2px">🗒 ${esc(r.poznamka)}</div>`:''}</td>
+          <td data-label="Priorita">${badge(r.priorita,PRIORITIES)}</td>
+          <td class="num" data-label="Množství">${r.mnozstvi}</td>
+          <td class="num hide-mobile" data-label="Cena / ks">${(Number(r.cena)||0)?num(r.cena)+' '+esc(r.mena):'<span class="badge b-amber">bez ceny</span>'}</td>
+          <td class="num hide-mobile" data-label="Cena celkem">${(Number(r.cena)||0)?num(total(r))+' '+esc(r.mena):'<span class="muted">—</span>'}</td>
+          <td class="num" data-label="Celkem EUR">${(Number(r.cena)||0)?`<b>${num(totalEur(r))} €</b>`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Výrobce">${r.vyrobce?esc(r.vyrobce):'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Účet">${r.ucet?`<b>${esc(r.ucet)}</b>${accName(r.ucet)?`<div class="muted" style="font-size:10.5px;white-space:normal;max-width:130px">${esc(accName(r.ucet))}</div>`:''}`:'<span class="muted">—</span>'}</td>
+          <td data-label="Linka / stroj">${r.usek?`<b>${esc(r.usek)}</b>${r.stroj?`<div class="muted" style="font-size:10.5px">${esc(r.stroj)}</div>`:''}`:'<span class="muted">—</span>'}</td>
+          <td class="${late?'late':''}" data-label="Dodání">${r.datum?esc(dateCz(r.datum))+(late?' ⚠':''):'<span class="muted">—</span>'}</td>
+          <td class="num hide-mobile ${(Number(r.min)||0)>0&&(Number(r.mnozstvi)||0)<Number(r.min)?'stock-warn':''}" data-label="MIN/MAX">${(r.min||r.max)?`${r.min||0} / ${r.max||0}`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Odkaz">${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ odkaz</a>`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Zadal">${esc(r.authorName||'—')}</td>
+          <td class="hide-mobile" data-label="Schválil">${r.approvedBy?`<span class="badge b-green">✔ ${esc(r.approvedBy)}</span><div class="muted" style="font-size:10px">${esc(dateCz(r.approvedAt)||'')}</div>`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Akce">${P().del?`<button class="rowbtn no" data-a="del" data-v="${r._id}">Smazat</button>`:'<span class="muted">—</span>'}</td>
         </tr>`;}).join('')
       :`<tr><td colspan="19" class="empty">Žádné požadavky neodpovídají filtru.</td></tr>`}
       </tbody>
@@ -582,8 +633,9 @@ function modalView(){
   const statusLocked = isNew && !P().edit;
   const body = ed ? `
       ${statusLocked
-        ? `<div class="f"><label>Stav schvalování</label><div class="ro">nový</div><div id="auto-hint" class="autohint ${(Number(r.cena)||0)>0?'':'grey'}">${(Number(r.cena)||0)>0?'Cena je vyplněná → po odeslání půjde rovnou ke schválení.':'Bez ceny — sklad požadavek poptá u dodavatele.'}</div></div>`
+        ? `<div class="f"><label>Stav schvalování</label><div class="ro">nový</div><div id="auto-hint" class="autohint ${(Number(r.cena)||0)>0?'':'grey'}">${(Number(r.cena)||0)>0?'Cena je vyplněná → po odeslání půjde rovnou ke schválení.':'Bez ceny zůstane ve stavu „nový" — cenu doplníš ty nebo sklad.'}</div></div>`
         : wrap('status',`<select id="e-status">${STATUSES.map(s=>`<option ${r.status===s.k?'selected':''}>${s.k}</option>`).join('')}</select>`)}
+      ${wrapL('typ','Druh požadavku',`<select id="e-typ">${TYPES.map(t=>`<option ${(r.typ||'Nový požadavek')===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`,'span2')}
       <div class="f"><label>Pořadové číslo</label><div class="ro">${isNew?'<span class="muted">přidělí se po uložení</span>':esc(r.poradove)}</div></div>
       ${wrap('sklad',`<input id="e-sklad" value="${esc(r.sklad)}" placeholder="SKL-…">`)}
       ${wrap('priorita',`<select id="e-priorita">${PRIORITIES.map(p=>`<option ${r.priorita===p.k?'selected':''}>${p.k}</option>`).join('')}</select>`)}
@@ -599,13 +651,14 @@ function modalView(){
       ${wrap('stroj',machineSelect(r))}
       ${wrapL('datum','Předpokládané datum dodání',`<input id="e-datum" type="date" value="${esc(r.datum)}">`)}
       <div class="stockbox"><input type="checkbox" id="e-newstock" ${stockOn?'checked':''}><label for="e-newstock">Založit jako novou skladovou položku?</label></div>
-      ${stockOn?`${wrap('min',`<input id="e-min" type="number" min="0" step="1" value="${esc(r.min)}">`)}
-      ${wrap('max',`<input id="e-max" type="number" min="0" step="1" value="${esc(r.max)}">`)}`:''}
+      ${stockOn?`${wrap('min',`<input id="e-min" type="number" min="0" step="1" value="${esc(r.min)}">`,'span2')}
+      ${wrap('max',`<input id="e-max" type="number" min="0" step="1" value="${esc(r.max)}">`,'span2')}`:''}
       ${wrap('url',`<input id="e-url" value="${esc(r.url)}" placeholder="https://…">`,'span2')}
       ${wrap('poznamka',`<textarea id="e-poznamka" rows="2" placeholder="Komentář pro nákup / schvalovatele">${esc(r.poznamka)}</textarea>`,'span4')}`
   : `
       <div class="f"><label>Stav schvalování</label><div class="ro">${badge(r.status,STATUSES)}</div></div>
       <div class="f"><label>Pořadové číslo</label><div class="ro">${esc(r.poradove)}</div></div>
+      ${roL('Druh požadavku',r.typ||'Nový požadavek','span2')}
       ${ro('sklad',r.sklad)}
       <div class="f"><label>Priorita</label><div class="ro">${badge(r.priorita,PRIORITIES)}</div></div>
       ${roL('Popis položky',r.popis,'span4')}
@@ -637,6 +690,7 @@ function modalView(){
         ${(!isNew&&P().edit&&needsPoptat(r))?`<button class="btn-ghost" data-a="poptat" data-v="${r._id}">Poptat</button>`:''}
         ${(!isNew&&P().approve&&!r.approvedBy&&r.status!=='zamítnuto')?`<button class="btn-danger" data-a="reject" data-v="${r._id}">✕ Zamítnout</button><button class="btn-ok" data-a="approve" data-v="${r._id}">✔ Schválit za sebe</button>`:''}
         ${!isNew?`<button class="btn-ghost" data-a="dup" data-v="${r._id}">Kopie</button>`:''}
+        ${(!isNew&&P().del)?`<button class="btn-danger" data-a="del" data-v="${r._id}">Smazat</button>`:''}
         <button class="btn-ghost" data-a="close">${ed?'Zrušit':'Zavřít'}</button>
         ${ed?`<button class="btn-primary" data-a="save">${isNew?'Založit požadavek':'Uložit změny'}</button>`:''}
       </div>
@@ -733,7 +787,7 @@ const info=(t,o={})=>ask(Object.assign({text:t,kind:'info',title:'Informace',ok:
 /* ---------- formulář: sběr, přepočet, validace ---------- */
 function collect(){
   const g=id=>{const el=document.getElementById(id);return el?el.value:undefined;};
-  const set={status:g('e-status'),sklad:g('e-sklad'),popis:g('e-popis'),duvod:g('e-duvod'),priorita:g('e-priorita'),
+  const set={status:g('e-status'),typ:g('e-typ'),sklad:g('e-sklad'),popis:g('e-popis'),duvod:g('e-duvod'),priorita:g('e-priorita'),
     mnozstvi:Number(g('e-mnozstvi'))||0,cena:Number(g('e-cena'))||0,mena:g('e-mena'),vyrobce:g('e-vyrobce'),
     ucet:g('e-ucet'),usek:g('e-usek'),stroj:g('e-stroj'),datum:g('e-datum'),
     min:Number(g('e-min'))||0,max:Number(g('e-max'))||0,url:g('e-url'),poznamka:g('e-poznamka')};
@@ -747,7 +801,7 @@ function recalc(){
   if(e)e.textContent=num(totalEur(editing))+' €';
   const h=document.getElementById('auto-hint');
   if(h){const has=(Number(editing.cena)||0)>0;h.className='autohint '+(has?'':'grey');
-    h.textContent=has?'Cena je vyplněná → po odeslání půjde rovnou ke schválení.':'Bez ceny — sklad požadavek poptá u dodavatele.';}
+    h.textContent=has?'Cena je vyplněná → po odeslání půjde rovnou ke schválení.':'Bez ceny zůstane ve stavu „nový" — cenu doplníš ty nebo sklad.';}
 }
 function validate(){
   errs={};
@@ -846,7 +900,7 @@ async function act(a,v,el,ev){
     case 'dlg-no':{const d=dlg;dlg=null;render();d.resolve(d.kind==='prompt'?null:false);return;}
 
     case 'new':
-      editing={status:'nový',poradove:'',sklad:'',popis:'',duvod:'',priorita:'běžná',mnozstvi:1,cena:0,mena:'CZK',
+      editing={status:'nový',typ:'Nový požadavek',poradove:'',sklad:'',popis:'',duvod:'',priorita:'běžná',mnozstvi:1,cena:0,mena:'CZK',
         vyrobce:'',ucet:'',usek:'',stroj:'',datum:'',min:0,max:0,newStock:false,url:'',poznamka:''};
       errs={};footMsg='';break;
     case 'open':{ editing=JSON.parse(JSON.stringify(rows.find(r=>r._id===v)));
@@ -872,7 +926,7 @@ async function act(a,v,el,ev){
     case 'del':{
       if(!P().del)return; const r=rows.find(x=>x._id===v);
       if(await askYes(`Smazat požadavek ${r.poradove}? Tohle nejde vrátit.`,{title:'Smazání',ok:'Smazat',danger:true})){
-        try{await deleteDoc(doc(db,'requests',v));toast('Požadavek smazán.','ok');}catch(e){toast('Nešlo smazat: '+e.message,'err');}
+        try{await deleteDoc(doc(db,'requests',v));editing=null;toast('Požadavek smazán.','ok');}catch(e){toast('Nešlo smazat: '+e.message,'err');}
       }break;
     }
     case 'poptat':{
@@ -906,8 +960,8 @@ async function act(a,v,el,ev){
       editing=null;errs={};footMsg='';break;
 
     case 'export':{
-      const head=['Stav','Pořadové číslo','Vytvořeno','Skladové číslo','Popis položky','Důvod objednání','Priorita','Množství','Cena/ks','Měna','Cena celkem','Cena EUR','Výrobce','Účet','Popis účtu','Linka','Stroj','Předpokládané datum dodání','MIN','MAX','URL','Poznámka','Zadal','Schválil','Schváleno dne'];
-      const lines=[head.join(';')].concat(visibleRows().map(r=>[r.status,r.poradove,r.created,r.sklad,r.popis,r.duvod,r.priorita,r.mnozstvi,r.cena,r.mena,total(r).toFixed(2),totalEur(r).toFixed(2),r.vyrobce,r.ucet,accName(r.ucet),r.usek,r.stroj,r.datum,r.min,r.max,r.url,r.poznamka,r.authorName,r.approvedBy||'',r.approvedAt||'']
+      const head=['Stav','Druh','Pořadové číslo','Vytvořeno','Skladové číslo','Popis položky','Důvod objednání','Priorita','Množství','Cena/ks','Měna','Cena celkem','Cena EUR','Výrobce','Účet','Popis účtu','Linka','Stroj','Předpokládané datum dodání','MIN','MAX','URL','Poznámka','Zadal','Schválil','Schváleno dne'];
+      const lines=[head.join(';')].concat(visibleRows().map(r=>[r.status,r.typ||'Nový požadavek',r.poradove,r.created,r.sklad,r.popis,r.duvod,r.priorita,r.mnozstvi,r.cena,r.mena,total(r).toFixed(2),totalEur(r).toFixed(2),r.vyrobce,r.ucet,accName(r.ucet),r.usek,r.stroj,r.datum,r.min,r.max,r.url,r.poznamka,r.authorName,r.approvedBy||'',r.approvedAt||'']
         .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';')));
       const b=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv'});
       const a2=document.createElement('a');a2.href=URL.createObjectURL(b);a2.download='nakupni_pozadavky.csv';a2.click();return;
