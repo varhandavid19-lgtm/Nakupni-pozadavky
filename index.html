@@ -132,6 +132,9 @@
   .hist{padding:0 15px 12px;font-size:11px;color:var(--muted)}
   .hist div{padding:3px 0;border-top:1px dotted var(--line)}
 
+  #qr-reader{width:100%;border-radius:6px;overflow:hidden}
+  #qr-reader video{width:100%!important;height:auto!important;border-radius:6px;display:block}
+  .qrbtn{background:#eef6ff;border:1px solid #cbdff5;color:#28456e;font-weight:700}
   .dlg-wrap{position:fixed;inset:0;background:rgba(12,26,48,.6);display:flex;align-items:center;justify-content:center;z-index:80;padding:16px}
   .dlg{background:#fff;border-radius:8px;max-width:440px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.35);overflow:hidden}
   .dlg .t{background:linear-gradient(90deg,var(--navy-1),var(--navy-2));color:#fff;padding:10px 14px;font-size:13px;font-weight:700}
@@ -231,6 +234,9 @@
 </head>
 <body>
 <div id="app"><div class="login-wrap"><div class="login"><h2>Načítám…</h2><p class="s">Připojuji se k Firebase.</p></div></div></div>
+
+<!-- Čtečka QR/čárových kódů (skenování foťákem). Načítá se z CDN, nevadí když chybí síť. -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
@@ -339,6 +345,7 @@ let filters={q:'',status:'',priorita:'',ucet:'',usek:'',od:'',do:'',mine:false};
 let editing=null, errs={}, footMsg='';
 let dlg=null, toastMsg=null, toastKind='', drafts={};
 let loginBusy=false, loginErr='';
+let qrOpen=false, qr=null;   // stav QR skeneru
 
 /* ---------- pomocné ---------- */
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -411,7 +418,7 @@ function subscribeRows(){
   const q1 = query(collection(db,'requests'), orderBy('createdTs','desc'));
   unsubRows = onSnapshot(q1, snap=>{
     rows = snap.docs.map(d=>Object.assign({_id:d.id}, d.data()));
-    dataReady=true; render();
+    dataReady=true; if(!qrOpen) render();
   }, err=>{ fatalErr='Nemám přístup k datům: '+err.message; render(); });
 }
 function subscribeUsers(){
@@ -452,7 +459,7 @@ function render(){
   if(fatalErr){ app.innerHTML=splash(fatalErr,true); bind(); return; }
   if(!me){ app.innerHTML=loginView()+dlgView()+`<div id="toast-node">${toastView()}</div>`; bind(); return; }
   if(!dataReady){ app.innerHTML=splash('Načítám požadavky…'); return; }
-  app.innerHTML = shell()+dlgView()+`<div id="toast-node">${toastView()}</div>`;
+  app.innerHTML = shell()+dlgView()+(qrOpen?qrScanView():'')+`<div id="toast-node">${toastView()}</div>`;
   bind();
   const di=document.getElementById('dlg-input'); if(di){di.focus();di.select();}
 }
@@ -654,6 +661,7 @@ function modalView(){
       ${stockOn?`${wrap('min',`<input id="e-min" type="number" min="0" step="1" value="${esc(r.min)}">`,'span2')}
       ${wrap('max',`<input id="e-max" type="number" min="0" step="1" value="${esc(r.max)}">`,'span2')}`:''}
       ${wrap('url',`<input id="e-url" value="${esc(r.url)}" placeholder="https://…">`,'span2')}
+      ${wrapL('notifyEmail','Komu poslat e-mail o naskladnění',`<input id="e-notify" type="text" value="${esc(r.notifyEmail)}" placeholder="např. mistr@firma.cz, nakup@firma.cz">`,'span2')}
       ${wrap('poznamka',`<textarea id="e-poznamka" rows="2" placeholder="Komentář pro nákup / schvalovatele">${esc(r.poznamka)}</textarea>`,'span4')}`
   : `
       <div class="f"><label>Stav schvalování</label><div class="ro">${badge(r.status,STATUSES)}</div></div>
@@ -673,10 +681,13 @@ function modalView(){
       ${roL('Předpokládané datum dodání',dateCz(r.datum))}
       ${(r.newStock||(Number(r.min)||0)>0||(Number(r.max)||0)>0)?`<div class="f"><label>MIN / MAX skladem</label><div class="ro">${(r.min||0)} / ${(r.max||0)}</div></div>`:''}
       <div class="f span2"><label>URL odkaz</label><div class="ro">${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a>`:'<span class="muted">—</span>'}</div></div>
+      ${roL('Komu poslat e-mail o naskladnění',r.notifyEmail,'span2')}
       ${ro('poznamka',r.poznamka,'span4')}
       <div class="f span2"><label>Zadal</label><div class="ro">${esc(r.authorName||'—')} · ${esc(dateCz(r.created))}</div></div>
       <div class="f span2"><label>Schválil</label><div class="ro">${r.approvedBy?esc(r.approvedBy)+' · '+esc(dateCz(r.approvedAt)):'<span class="muted">zatím neschváleno</span>'}</div></div>`;
-  const roleBar = ed ? '' : (me.role==='schvalovatel'
+  const roleBar = ed
+      ? `<div class="robar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Vyplň ručně, nebo naskenuj štítek dílu:<button class="qrbtn" data-a="qr-open" style="padding:6px 12px;border-radius:6px">📷 Naskenovat QR / čárový kód</button></div>`
+      : (me.role==='schvalovatel'
       ? `<div class="robar">Jako schvalovatel požadavek neupravuješ — rozhoduješ o něm tlačítky dole. Změny údajů zadej skladu.</div>`
       : `<div class="robar">Požadavek je jen ke čtení. Změnu domluv se skladem.</div>`);
   return `<div class="overlay" data-a="close-bg"><div class="modal">
@@ -773,6 +784,48 @@ function dlgView(){
       <button class="${dlg.danger?'btn-danger':'btn-primary'}" data-a="dlg-yes">${esc(dlg.ok||'Potvrdit')}</button></div></div></div>`;
 }
 function toastView(){ return toastMsg?`<div class="toast ${toastKind}">${esc(toastMsg)}</div>`:''; }
+
+/* ---------- QR / čárový kód ---------- */
+function qrScanView(){
+  return `<div class="dlg-wrap" style="z-index:95"><div class="dlg" style="max-width:380px">
+    <div class="t">📷 Naskenuj QR / čárový kód</div>
+    <div class="c" style="padding:12px">
+      <div id="qr-reader"></div>
+      <p class="muted" style="font-size:11px;margin-top:8px">Namiř zadní fotoaparát na kód. Předvyplní se skladové číslo (a další údaje, pokud jsou v kódu). Při prvním použití povol přístup ke kameře.</p>
+      <div id="qr-msg" class="loginerr" style="display:none;margin-top:8px"></div>
+    </div>
+    <div class="b"><button class="btn-ghost" data-a="qr-close">Zavřít</button></div>
+  </div></div>`;
+}
+function startQr(){
+  if(qr) return;
+  const msg=t=>{const m=document.getElementById('qr-msg');if(m){m.style.display='block';m.textContent=t;}};
+  if(!window.Html5Qrcode){ msg('Čtečka se nenačetla — zkontroluj připojení k internetu a zkus to znovu.'); return; }
+  try{
+    qr=new Html5Qrcode('qr-reader');
+    qr.start({facingMode:'environment'},{fps:10,qrbox:{width:230,height:230}},
+      txt=>onQrScan(txt), ()=>{}
+    ).catch(e=>{ qr=null; msg('Kameru se nepodařilo spustit: '+(e&&e.message?e.message:e)); });
+  }catch(e){ qr=null; msg('Kameru se nepodařilo spustit.'); }
+}
+function stopQr(){ if(qr){ const x=qr; qr=null; try{ x.stop().then(()=>x.clear()).catch(()=>{}); }catch(e){} } }
+function onQrScan(text){ if(!qr) return; stopQr(); applyScan(text); }
+function applyScan(text){
+  qrOpen=false;
+  let data=null;
+  try{ const j=JSON.parse(text); if(j&&typeof j==='object'&&!Array.isArray(j)) data=j; }catch(e){}
+  if(editing){
+    if(data){
+      ['sklad','popis','duvod','vyrobce','ucet','usek','stroj','url','mnozstvi','cena','mena','priorita'].forEach(k=>{
+        if(data[k]!==undefined&&data[k]!==null&&data[k]!=='') editing[k]=data[k];
+      });
+    }else{
+      editing.sklad=String(text).trim();
+    }
+  }
+  render();
+  toast('Načteno z QR kódu.','ok');
+}
 function toast(msg,kind=''){
   toastMsg=msg;toastKind=kind;clearTimeout(toast._t);
   const host=document.getElementById('app');
@@ -784,13 +837,31 @@ const askYes=(t,o={})=>ask(Object.assign({text:t},o));
 const askText=(t,o={})=>ask(Object.assign({text:t,kind:'prompt',ok:'Odeslat'},o));
 const info=(t,o={})=>ask(Object.assign({text:t,kind:'info',title:'Informace',ok:'Rozumím'},o));
 
+/* Po naskladnění nabídne otevření e-mailu (Outlook) s předvyplněným upozorněním. */
+function offerDeliveryMail(r){
+  const to=[r.authorEmail,r.notifyEmail].filter(Boolean).join(',');
+  if(!to){ toast('Naskladněno. E-mail nemám komu poslat (chybí adresa).','ok'); return; }
+  const co = r.popis||r.duvod||('požadavek '+(r.poradove||''));
+  const subject = `Naskladněno: ${r.poradove||''} — ${co}`;
+  const body = `Dobrý den,\n\ndíl z Vašeho nákupního požadavku ${r.poradove||''} byl naskladněn.\n\n`
+    + `Položka: ${r.popis||r.duvod||'—'}\n`
+    + `Množství: ${r.mnozstvi||'—'}\n`
+    + `Linka / stroj: ${r.usek||'—'}${r.stroj?' / '+r.stroj:''}\n\n`
+    + `S pozdravem`;
+  const url = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  dlg = { kind:'confirm', title:'Naskladněno — poslat upozornění?',
+    text:`Požadavek ${r.poradove||''} je naskladněn. Otevřít e-mail s předvyplněným upozorněním pro: ${to}? (příjemce můžeš v Outlooku ještě upravit)`,
+    ok:'📧 Otevřít e-mail', mailto:url, resolve:()=>{} };
+  render();
+}
+
 /* ---------- formulář: sběr, přepočet, validace ---------- */
 function collect(){
   const g=id=>{const el=document.getElementById(id);return el?el.value:undefined;};
   const set={status:g('e-status'),typ:g('e-typ'),sklad:g('e-sklad'),popis:g('e-popis'),duvod:g('e-duvod'),priorita:g('e-priorita'),
     mnozstvi:Number(g('e-mnozstvi'))||0,cena:Number(g('e-cena'))||0,mena:g('e-mena'),vyrobce:g('e-vyrobce'),
     ucet:g('e-ucet'),usek:g('e-usek'),stroj:g('e-stroj'),datum:g('e-datum'),
-    min:Number(g('e-min'))||0,max:Number(g('e-max'))||0,url:g('e-url'),poznamka:g('e-poznamka')};
+    min:Number(g('e-min'))||0,max:Number(g('e-max'))||0,url:g('e-url'),notifyEmail:g('e-notify'),poznamka:g('e-poznamka')};
   Object.keys(set).forEach(k=>{if(set[k]!==undefined)editing[k]=set[k];});
   const ns=document.getElementById('e-newstock'); if(ns) editing.newStock=ns.checked;
 }
@@ -835,7 +906,7 @@ async function nextNumber(){
 async function createRequest(){
   const poradove=await nextNumber();
   const rec=Object.assign({},editing,{
-    poradove, author:me.uid, authorName:me.name, created:today(), createdTs:serverTimestamp(),
+    poradove, author:me.uid, authorName:me.name, authorEmail:me.email, created:today(), createdTs:serverTimestamp(),
     approvedBy:null, approvedAt:null, hist:[`${today()} · ${me.name} · založil požadavek`]
   });
   const auto=applyAutoStatus(rec,'nový',false);
@@ -878,6 +949,7 @@ function bind(){
   const us=document.getElementById('e-usek');if(us)us.onchange=()=>{collect();editing.stroj='';render();};
   const ns=document.getElementById('e-newstock');if(ns)ns.onchange=()=>{collect();render();};
   const lp=document.getElementById('lg-pass');if(lp)lp.onkeydown=e=>{if(e.key==='Enter')act('login');};
+  if(qrOpen) startQr();
 }
 
 async function act(a,v,el,ev){
@@ -896,12 +968,14 @@ async function act(a,v,el,ev){
     case 'tab': tab=v; break;
     case 'sort': sort=(sort.col===v)?{col:v,dir:-sort.dir}:{col:v,dir:1}; break;
     case 'clear-filters': filters={q:'',status:'',priorita:'',ucet:'',usek:'',od:'',do:'',mine:false}; break;
-    case 'dlg-yes':{const d=dlg;dlg=null;const val=d.kind==='prompt'?(document.getElementById('dlg-input')||{}).value||'':true;render();d.resolve(d.kind==='prompt'?val:true);return;}
+    case 'dlg-yes':{const d=dlg;dlg=null;const val=d.kind==='prompt'?(document.getElementById('dlg-input')||{}).value||'':true;
+      if(d.mailto){const a2=document.createElement('a');a2.href=d.mailto;a2.rel='noopener';document.body.appendChild(a2);a2.click();a2.remove();}
+      render();d.resolve(d.kind==='prompt'?val:true);return;}
     case 'dlg-no':{const d=dlg;dlg=null;render();d.resolve(d.kind==='prompt'?null:false);return;}
 
     case 'new':
       editing={status:'nový',typ:'Nový požadavek',poradove:'',sklad:'',popis:'',duvod:'',priorita:'běžná',mnozstvi:1,cena:0,mena:'CZK',
-        vyrobce:'',ucet:'',usek:'',stroj:'',datum:'',min:0,max:0,newStock:false,url:'',poznamka:''};
+        vyrobce:'',ucet:'',usek:'',stroj:'',datum:'',min:0,max:0,newStock:false,url:'',notifyEmail:'',poznamka:''};
       errs={};footMsg='';break;
     case 'open':{ editing=JSON.parse(JSON.stringify(rows.find(r=>r._id===v)));
       if(editing.newStock===undefined) editing.newStock=(Number(editing.min)||0)>0||(Number(editing.max)||0)>0;
@@ -919,7 +993,13 @@ async function act(a,v,el,ev){
       if(!validate()){footMsg='Doplň povinná pole označená červeně.';render();return;}
       try{
         if(isNew){const no=await createRequest();editing=null;footMsg='';toast('Požadavek '+no+' založen.','ok');}
-        else{await updateRequest();editing=null;footMsg='';toast('Změny uloženy.','ok');}
+        else{
+          const old=rows.find(r=>r._id===editing._id)||{};
+          const becameDelivered = old.status!=='doručeno' && editing.status==='doručeno';
+          const saved=JSON.parse(JSON.stringify(editing));
+          await updateRequest();editing=null;footMsg='';toast('Změny uloženy.','ok');
+          if(becameDelivered) offerDeliveryMail(saved);
+        }
       }catch(e){footMsg='Uložení selhalo: '+e.message;render();return;}
       break;
     }
@@ -955,13 +1035,20 @@ async function act(a,v,el,ev){
       catch(e){toast('Zamítnutí selhalo: '+e.message,'err');}
       break;
     }
+    case 'qr-open':{
+      if(!editing)return; collect();
+      if(!window.Html5Qrcode){toast('QR čtečka se nenačetla — zkontroluj internet a zkus to znovu.','err');return;}
+      qrOpen=true;break;
+    }
+    case 'qr-close': stopQr(); qrOpen=false; break;
+
     case 'close': case 'close-bg':
       if(a==='close-bg'&&ev&&ev.target!==el)return;
-      editing=null;errs={};footMsg='';break;
+      stopQr(); qrOpen=false; editing=null;errs={};footMsg='';break;
 
     case 'export':{
-      const head=['Stav','Druh','Pořadové číslo','Vytvořeno','Skladové číslo','Popis položky','Důvod objednání','Priorita','Množství','Cena/ks','Měna','Cena celkem','Cena EUR','Výrobce','Účet','Popis účtu','Linka','Stroj','Předpokládané datum dodání','MIN','MAX','URL','Poznámka','Zadal','Schválil','Schváleno dne'];
-      const lines=[head.join(';')].concat(visibleRows().map(r=>[r.status,r.typ||'Nový požadavek',r.poradove,r.created,r.sklad,r.popis,r.duvod,r.priorita,r.mnozstvi,r.cena,r.mena,total(r).toFixed(2),totalEur(r).toFixed(2),r.vyrobce,r.ucet,accName(r.ucet),r.usek,r.stroj,r.datum,r.min,r.max,r.url,r.poznamka,r.authorName,r.approvedBy||'',r.approvedAt||'']
+      const head=['Stav','Druh','Pořadové číslo','Vytvořeno','Skladové číslo','Popis položky','Důvod objednání','Priorita','Množství','Cena/ks','Měna','Cena celkem','Cena EUR','Výrobce','Účet','Popis účtu','Linka','Stroj','Předpokládané datum dodání','MIN','MAX','URL','Upozornit e-mailem','Poznámka','Zadal','Schválil','Schváleno dne'];
+      const lines=[head.join(';')].concat(visibleRows().map(r=>[r.status,r.typ||'Nový požadavek',r.poradove,r.created,r.sklad,r.popis,r.duvod,r.priorita,r.mnozstvi,r.cena,r.mena,total(r).toFixed(2),totalEur(r).toFixed(2),r.vyrobce,r.ucet,accName(r.ucet),r.usek,r.stroj,r.datum,r.min,r.max,r.url,r.notifyEmail||'',r.poznamka,r.authorName,r.approvedBy||'',r.approvedAt||'']
         .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';')));
       const b=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv'});
       const a2=document.createElement('a');a2.href=URL.createObjectURL(b);a2.download='nakupni_pozadavky.csv';a2.click();return;
