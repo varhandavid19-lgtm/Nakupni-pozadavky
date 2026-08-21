@@ -1,0 +1,63 @@
+rules_version = '2';
+
+/* ==========================================================================
+   Nákupní požadavky + Revize — bezpečnostní pravidla Firestore
+
+   TENTO SOUBOR SE NEPUBLIKUJE SÁM. Musíš ho ručně vložit ve Firebase konzoli:
+   Firestore Database → Rules → vložit obsah → Publish.
+
+   Pravidla jsou to jediné, co data opravdu chrání. Role v aplikaci (objekt
+   ROLES v index.html) jen schovávají tlačítka — server rozhoduje tady.
+   ========================================================================== */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn(){ return request.auth != null; }
+
+    /* Role se čte z dokumentu users/<uid>. */
+    function myRole(){
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin(){    return signedIn() && myRole() == 'admin'; }
+    function canEdit(){    return signedIn() && myRole() in ['skladnik','admin']; }
+    function canApprove(){ return signedIn() && myRole() in ['schvalovatel','admin']; }
+    /* Revize smí zakládat a upravovat skladník, schvalovatel a admin
+       (v aplikaci je to příznak `rev` u role). */
+    function canRev(){     return signedIn() && myRole() in ['skladnik','schvalovatel','admin']; }
+
+    /* --- profily uživatelů ---------------------------------------------
+       Každý přihlášený vidí seznam lidí (kvůli jménům u požadavků).
+       Zapisovat smí svůj vlastní profil (zakládá se sám při prvním
+       přihlášení a je v něm i pojistka „vždy admin") a admin komukoli.  */
+    match /users/{uid} {
+      allow read:  if signedIn();
+      allow write: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    /* --- společné nastavení ---------------------------------------------
+       POZOR: zápis musí zůstat povolený všem přihlášeným. Přes meta/config
+       běží transakce, která přiděluje pořadová čísla (pole `seq` pro
+       NP-… a `revSeq` pro RV-…). Kdyby sem směl zapisovat jen admin,
+       nikdo jiný by nezaložil požadavek ani revizi.                      */
+    match /meta/config {
+      allow read:  if signedIn();
+      allow write: if signedIn();
+    }
+
+    /* --- nákupní požadavky ---------------------------------------------- */
+    match /requests/{id} {
+      allow read:   if signedIn();
+      allow create: if signedIn();                 // zakládat smí každý
+      allow update: if canEdit() || canApprove();  // měnit sklad a schvalovatel
+      allow delete: if isAdmin();
+    }
+
+    /* --- revize ---------------------------------------------------------- */
+    match /revisions/{id} {
+      allow read:           if signedIn();
+      allow create, update: if canRev();
+      allow delete:         if isAdmin();
+    }
+  }
+}

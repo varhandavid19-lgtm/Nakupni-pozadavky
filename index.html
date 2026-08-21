@@ -290,14 +290,25 @@ const PRIORITIES = [
   {k:'kritická',cls:'b-red'},{k:'vysoká',cls:'b-amber'},{k:'běžná',cls:'b-blue'},{k:'nízká',cls:'b-grey'}
 ];
 const TYPES = ['Nový požadavek','Doplnění skladu'];
+
+/* ---------- REVIZE: stavy platnosti, výsledky, podbarvení řádků ---------- */
+const REV_STATES = [
+  {k:'platná',cls:'b-green'},{k:'brzy vyprší',cls:'b-amber'},{k:'po platnosti',cls:'b-red'},
+  {k:'bez termínu',cls:'b-grey'},{k:'vyřazeno',cls:'b-grey'}
+];
+const REV_RESULTS = [
+  {k:'vyhovuje',cls:'b-green'},{k:'vyhovuje s výhradami',cls:'b-amber'},
+  {k:'nevyhovuje',cls:'b-red'},{k:'čeká na protokol',cls:'b-grey'}
+];
+const REV_TINT = {'platná':'#eefaf2','brzy vyprší':'#fdf6e9','po platnosti':'#fdf1ef','bez termínu':'#ffffff','vyřazeno':'#f6f7f9'};
 const ROLES = {
-  zadavatel:   {label:'Zadavatel',    lvl:1, edit:false, approve:false, del:false, admin:false,
+  zadavatel:   {label:'Zadavatel',    lvl:1, edit:false, approve:false, del:false, admin:false, rev:false,
                 popis:'Zakládá požadavky, hledá a sleduje jejich stav. Po odeslání už požadavek needituje.'},
-  skladnik:    {label:'Skladník',     lvl:2, edit:true,  approve:false, del:false, admin:false,
+  skladnik:    {label:'Skladník',     lvl:2, edit:true,  approve:false, del:false, admin:false, rev:true,
                 popis:'Mění stav požadavku, doplňuje datum dodání, účet a ostatní údaje.'},
-  schvalovatel:{label:'Schvalovatel', lvl:3, edit:false, approve:true,  del:false, admin:false,
+  schvalovatel:{label:'Schvalovatel', lvl:3, edit:false, approve:true,  del:false, admin:false, rev:true,
                 popis:'Schvaluje nebo zamítá požadavky. Stačí schválení jednoho z nich.'},
-  admin:       {label:'Administrátor',lvl:4, edit:true,  approve:true,  del:true,  admin:true,
+  admin:       {label:'Administrátor',lvl:4, edit:true,  approve:true,  del:true,  admin:true,  rev:true,
                 popis:'Plná práva — data, uživatelé, účty i nastavení povinných polí.'}
 };
 /* Účty, které jsou VŽDY administrátor — pojistka proti zamčení z administrace.
@@ -331,7 +342,25 @@ const DEFAULT_CONFIG = {
     {id:'url',label:'URL odkaz',req:false},
     {id:'poznamka',label:'Poznámka',req:false}
   ],
-  seq:0
+  seq:0,
+  /* --- REVIZE --- čítač čísel, kolik dní dopředu hlásit blížící se konec platnosti,
+     a číselník druhů revizí s výchozím intervalem v MĚSÍCÍCH (mění se v Administraci). */
+  revSeq:0,
+  revWarnDays:30,
+  revTypes:[
+    {name:'Elektro — spotřebiče a nářadí',interval:12},
+    {name:'Elektroinstalace',interval:60},
+    {name:'Hromosvody',interval:48},
+    {name:'Zdvihací prostředky (oka, háky, vazáky)',interval:12},
+    {name:'Zdvihací zařízení / jeřáby',interval:12},
+    {name:'Vysokozdvižné vozíky',interval:12},
+    {name:'Tlaková zařízení / kompresory',interval:12},
+    {name:'Stroje — bezpečnostní prohlídka',interval:12},
+    {name:'Sprinklery / stabilní hasicí zařízení',interval:12},
+    {name:'Hasicí přístroje a hydranty',interval:12},
+    {name:'Světlíky a střešní prosvětlení',interval:12},
+    {name:'Budova — stavební prohlídka',interval:12}
+  ]
 };
 
 /* ---------- stav aplikace ---------- */
@@ -346,6 +375,13 @@ let editing=null, errs={}, footMsg='';
 let dlg=null, toastMsg=null, toastKind='', drafts={};
 let loginBusy=false, loginErr='';
 let qrOpen=false, qr=null;   // stav QR skeneru
+
+/* ---------- stav modulu REVIZE ---------- */
+let revs=[];                 // revisions (živě z Firestore)
+let revReady=false, revErr='';
+let revFilters={q:'',druh:'',usek:'',stav:'',mine:false};
+let revSort={col:'platnostDo',dir:1};
+let editingRev=null, revErrs={}, revFootMsg='';
 
 /* ---------- pomocné ---------- */
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -363,10 +399,42 @@ const ROW_TINT = {'poptáno':'#f6f7f9','nový':'#ffffff','ve schvalování':'#fd
 const needsPoptat = r => (Number(r.cena)||0)===0 && r.status==='nový' && !r.approvedBy;
 const toAskGlobal = () => rows.filter(needsPoptat).length;
 
+/* ---------- pomocné — REVIZE ---------- */
+const canRev = () => !!P().rev;
+const revType = n => (cfg?.revTypes||[]).find(t=>t.name===n);
+const revWarn = () => Number(cfg?.revWarnDays)||30;
+/* Přičte měsíce k datu. 31.1. + 1 měsíc = 28.2. (nepřeteče do března). */
+function addMonths(iso,months){
+  const m=Number(months);
+  if(!iso||!m) return '';
+  const d=new Date(String(iso).slice(0,10)+'T00:00:00');
+  if(isNaN(d)) return '';
+  const day=d.getDate();
+  d.setMonth(d.getMonth()+m);
+  if(d.getDate()<day) d.setDate(0);
+  return d.toISOString().slice(0,10);
+}
+/* Kolik dní zbývá do konce platnosti (záporné = už propadlá). */
+function revDaysLeft(r){
+  if(!r.platnostDo) return null;
+  const a=new Date(today()+'T00:00:00'), b=new Date(String(r.platnostDo).slice(0,10)+'T00:00:00');
+  if(isNaN(b)) return null;
+  return Math.round((b-a)/86400000);
+}
+function revState(r){
+  if(r.vyrazeno) return 'vyřazeno';
+  const d=revDaysLeft(r);
+  if(d===null) return 'bez termínu';
+  if(d<0) return 'po platnosti';
+  if(d<=revWarn()) return 'brzy vyprší';
+  return 'platná';
+}
+const revAlerts = () => revs.filter(r=>['po platnosti','brzy vyprší'].includes(revState(r))).length;
+
 /* ==========================================================
    FIREBASE — auth, načítání, zápis
    ========================================================== */
-let unsubRows=null, unsubUsers=null;
+let unsubRows=null, unsubUsers=null, unsubRevs=null;
 
 onAuthStateChanged(auth, async (user)=>{
   authReady=true;
@@ -376,12 +444,18 @@ onAuthStateChanged(auth, async (user)=>{
     await ensureConfig();
     me = await loadProfile(user);
     subscribeRows();
+    subscribeRevs();
     if(P().admin) subscribeUsers();
     render();
   }catch(e){ fatalErr = 'Chyba při načítání dat: '+e.message; render(); }
 });
 
-function teardown(){ if(unsubRows){unsubRows();unsubRows=null;} if(unsubUsers){unsubUsers();unsubUsers=null;} rows=[]; usersList=[]; dataReady=false; }
+function teardown(){
+  if(unsubRows){unsubRows();unsubRows=null;}
+  if(unsubUsers){unsubUsers();unsubUsers=null;}
+  if(unsubRevs){unsubRevs();unsubRevs=null;}
+  rows=[]; usersList=[]; revs=[]; dataReady=false; revReady=false; revErr='';
+}
 
 async function ensureConfig(){
   const ref = doc(db,'meta','config');
@@ -420,6 +494,21 @@ function subscribeRows(){
     rows = snap.docs.map(d=>Object.assign({_id:d.id}, d.data()));
     dataReady=true; if(!qrOpen) render();
   }, err=>{ fatalErr='Nemám přístup k datům: '+err.message; render(); });
+}
+/* Revize načítáme zvlášť. Když k nim uživatel nemá přístup (nepublikovaná
+   pravidla Firestore), NESMÍ to shodit celou aplikaci — chybu ukážeme
+   jen v záložce Revize a požadavky jedou dál. */
+function subscribeRevs(){
+  if(unsubRevs) return;
+  const q2 = query(collection(db,'revisions'), orderBy('createdTs','desc'));
+  unsubRevs = onSnapshot(q2, snap=>{
+    revs = snap.docs.map(d=>Object.assign({_id:d.id}, d.data()));
+    revReady=true; revErr='';
+    if(tab==='revize' && !qrOpen) render();
+  }, err=>{
+    revReady=true; revErr=err.message;
+    if(tab==='revize') render();
+  });
 }
 function subscribeUsers(){
   if(unsubUsers) return;
@@ -502,13 +591,14 @@ function shell(){
   </header>
   <div class="tabbar">
     <button class="tab ${tab==='pozadavky'?'active':''}" data-a="tab" data-v="pozadavky">Požadavky</button>
+    <button class="tab ${tab==='revize'?'active':''}" data-a="tab" data-v="revize">Revize${revAlerts()?`<span style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 6px;margin-left:6px;font-size:10px">${revAlerts()}</span>`:''}</button>
     ${P().admin?`<button class="tab violet ${tab==='admin'?'active':''}" data-a="tab" data-v="admin">⚙ Administrace</button>`:''}
     <div class="spacer">
       <button class="btn-ghost" data-a="export">⭳ Export CSV</button>
     </div>
   </div>
-  <main>${tab==='admin'?adminView():listView()}</main>
-  ${editing?modalView():''}`;
+  <main>${tab==='admin'?adminView():tab==='revize'?revListView():listView()}</main>
+  ${editing?modalView():''}${editingRev?revModalView():''}`;
 }
 
 /* ---------- seznam ---------- */
@@ -709,13 +799,250 @@ function modalView(){
   </div></div>`;
 }
 
+/* ==========================================================
+   REVIZE — evidence revizí spotřebičů, strojů a budov
+   Kolekce ve Firestore: revisions
+   Jeden dokument = jedna provedená revize jednoho zařízení.
+   Platnost se počítá z data revize + intervalu v měsících.
+   ========================================================== */
+function visibleRevs(){
+  let r=revs.slice();
+  if(revFilters.mine) r=r.filter(x=>x.author===me.uid);
+  if(revFilters.druh) r=r.filter(x=>x.druh===revFilters.druh);
+  if(revFilters.usek) r=r.filter(x=>x.usek===revFilters.usek);
+  if(revFilters.stav) r=r.filter(x=>revState(x)===revFilters.stav);
+  if(revFilters.q){const q=revFilters.q.toLowerCase();
+    r=r.filter(x=>[x.poradove,x.predmet,x.evidencni,x.umisteni,x.technik,x.firma,x.zavady,x.poznamka].join(' ').toLowerCase().includes(q));}
+  const c=revSort.col;
+  r.sort((a,b)=>{
+    /* vyřazená zařízení patří vždy až na konec, ať se nepletou do termínů */
+    const vy=(a.vyrazeno?1:0)-(b.vyrazeno?1:0); if(vy) return vy;
+    let x,y;
+    if(c==='dni'){ x=revDaysLeft(a); y=revDaysLeft(b); x=(x===null?99999:x); y=(y===null?99999:y); }
+    else if(c==='stav'){ x=revState(a); y=revState(b); }
+    else { x=a[c]; y=b[c]; }
+    if(typeof x==='number'||typeof y==='number') return ((x||0)-(y||0))*revSort.dir;
+    return String(x??'').localeCompare(String(y??''),'cs')*revSort.dir;
+  });
+  return r;
+}
+function revNotice(){
+  if(!canRev()) return `<div class="notice">Revize si můžeš prohlížet a filtrovat. Zakládat a upravovat je smí skladník, schvalovatel a administrátor.</div>`;
+  return `<div class="notice">Zakládáš a udržuješ záznamy revizí. Platnost se spočítá sama z <b>data revize + intervalu</b> daného druhu revize — datum si můžeš přepsat ručně. Po nové revizi téhož zařízení použij tlačítko <b>Nová revize</b> v detailu, ať se údaje nemusí psát znovu.</div>`;
+}
+function revListView(){
+  if(revErr) return `<div class="notice" style="border-left-color:#c0392b">
+    <b>Nemám přístup k revizím.</b> Firestore hlásí: ${esc(revErr)}<br>
+    Nejspíš ještě nejsou publikovaná bezpečnostní pravidla pro kolekci <b>revisions</b>
+    (Firebase → Firestore Database → Rules → Publish). Požadavky tím nejsou dotčené.</div>`;
+  if(!revReady) return `<div class="notice">Načítám revize…</div>`;
+  const live=revs.filter(r=>!r.vyrazeno);
+  const late=revs.filter(r=>revState(r)==='po platnosti');
+  const soon=revs.filter(r=>revState(r)==='brzy vyprší');
+  const bad=revs.filter(r=>!r.vyrazeno&&['nevyhovuje','vyhovuje s výhradami'].includes(r.vysledek)&&!r.odstraneno);
+  const soonRows=late.concat(soon).sort((a,b)=>String(a.platnostDo).localeCompare(String(b.platnostDo)));
+  const card=(l,v,n,c)=>`<div class="kcard" style="border-left-color:${c}"><div class="lbl">${l}</div><div class="val" style="color:${c}">${v}</div><div class="note">${n}</div></div>`;
+  const th=(c,l)=>`<th data-a="rev-sort" data-v="${c}">${l}${revSort.col===c?(revSort.dir===1?' ▲':' ▼'):''}</th>`;
+  const shorten=(t,n=42)=>t&&t.length>n?t.slice(0,n-1).trim()+'…':t;
+  const termCard=`<div class="kcard" style="border-left-color:${soonRows.length?'#c0392b':'#6b7a90'}">
+    <div class="lbl">Vyžaduje pozornost</div><div class="val" style="color:${soonRows.length?'#c0392b':'#6b7a90'}">${soonRows.length}</div>
+    ${soonRows.length?`<div class="critlist">${soonRows.slice(0,4).map(r=>`<div class="critline" data-a="rev-open" data-v="${r._id}" title="${esc(r.predmet||'')}">
+        <span class="cno">${esc(r.poradove||'—')}</span><span class="cwhat">${esc(shorten(r.predmet||r.druh))}</span>
+        <span class="cwhere">${esc(r.stroj||r.usek||r.umisteni||'—')}</span>
+        <span class="badge ${(REV_STATES.find(x=>x.k===revState(r))||{}).cls}" style="font-size:9px">${esc(dateCz(r.platnostDo))}</span></div>`).join('')}${soonRows.length>4?`<div class="note" style="margin-top:4px">…a další ${soonRows.length-4}</div>`:''}</div>`:`<div class="note">po platnosti nebo do ${revWarn()} dní</div>`}
+  </div>`;
+  const anyFilter = revFilters.q||revFilters.druh||revFilters.usek||revFilters.stav||revFilters.mine;
+  const rr=visibleRevs();
+  return `
+  <div class="cards">
+    ${card('Zařízení v evidenci',live.length,'bez vyřazených','#16355f')}
+    ${card('Po platnosti',late.length,'revize propadla',late.length?'#c0392b':'#6b7a90')}
+    ${termCard}
+    ${card('Závady k řešení',bad.length,'nevyhovuje nebo s výhradami',bad.length?'#b7791f':'#6b7a90')}
+  </div>
+  ${revNotice()}
+  ${canRev()?`<div class="newbar"><button class="btn-new" data-a="rev-new">+ Nová revize</button></div>`:''}
+  <div class="panel">
+    <h2>Přehled revizí <span class="right">${rr.length} z ${revs.length} záznamů</span></h2>
+    <div class="legend">Podbarvení řádku = platnost:
+      ${REV_STATES.map(x=>`<span><i style="background:${REV_TINT[x.k]}"></i>${x.k}</span>`).join('')}
+    </div>
+    <div class="filters">
+      <input class="grow" id="fr-q" placeholder="Hledat v zařízení, evidenčním čísle, technikovi, závadách…" value="${esc(revFilters.q)}">
+      <select id="fr-druh"><option value="">Všechny druhy revizí</option>${(cfg.revTypes||[]).map(t=>`<option ${revFilters.druh===t.name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+      <select id="fr-usek"><option value="">Všechny linky</option>${cfg.sections.map(x=>`<option ${revFilters.usek===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+      <select id="fr-stav"><option value="">Všechny stavy platnosti</option>${REV_STATES.map(x=>`<option ${revFilters.stav===x.k?'selected':''}>${x.k}</option>`).join('')}</select>
+      <label class="check"><input type="checkbox" id="fr-mine" ${revFilters.mine?'checked':''}> Jen moje záznamy</label>
+      ${anyFilter?`<button class="btn-ghost" data-a="rev-clear">Zrušit filtry</button>`:''}
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr>
+        ${th('stav','Platnost')}${th('poradove','Číslo')}${th('druh','Druh revize')}${th('predmet','Zařízení / předmět')}
+        ${th('evidencni','Evid. č.')}${th('usek','Linka / stroj')}<th class="no-sort">Umístění</th>
+        ${th('datum','Datum revize')}${th('platnostDo','Platí do')}${th('dni','Zbývá')}
+        ${th('vysledek','Výsledek')}<th class="no-sort">Závady</th>${th('technik','Revizní technik')}
+        <th class="no-sort">Protokol</th><th class="no-sort">Akce</th>
+      </tr></thead>
+      <tbody>
+      ${rr.length?rr.map(r=>{
+        const st=revState(r), d=revDaysLeft(r);
+        return `<tr style="--row:${REV_TINT[st]||'#fff'};cursor:pointer" data-a="rev-open" data-v="${r._id}" title="Otevřít detail">
+          <td data-label="Platnost">${badge(st,REV_STATES)}</td>
+          <td data-label="Číslo"><b>${esc(r.poradove||'—')}</b></td>
+          <td class="hide-mobile" data-label="Druh revize">${esc(r.druh||'—')}</td>
+          <td class="desc" data-label="Zařízení">${esc(r.predmet||'')}${r.poznamka?`<div class="muted" style="font-size:11px;margin-top:2px">🗒 ${esc(r.poznamka)}</div>`:''}</td>
+          <td class="hide-mobile" data-label="Evid. č.">${r.evidencni?esc(r.evidencni):'<span class="muted">—</span>'}</td>
+          <td data-label="Linka / stroj">${r.usek?`<b>${esc(r.usek)}</b>${r.stroj?`<div class="muted" style="font-size:10.5px">${esc(r.stroj)}</div>`:''}`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Umístění">${r.umisteni?esc(r.umisteni):'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Datum revize">${esc(dateCz(r.datum))}</td>
+          <td data-label="Platí do"><b>${esc(dateCz(r.platnostDo))}</b></td>
+          <td class="num ${st==='po platnosti'?'late':''}" data-label="Zbývá">${(d===null||r.vyrazeno)?'<span class="muted">—</span>':(d<0?Math.abs(d)+' dní po ⚠':d+' dní')}</td>
+          <td data-label="Výsledek">${r.vysledek?badge(r.vysledek,REV_RESULTS):'<span class="muted">—</span>'}</td>
+          <td class="desc" data-label="Závady">${r.zavady?`${esc(shorten(r.zavady,60))}${r.odstraneno?' <span class="badge b-green" style="font-size:9px">odstraněno</span>':''}`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Revizní technik">${r.technik?esc(r.technik):'<span class="muted">—</span>'}${r.firma?`<div class="muted" style="font-size:10.5px">${esc(r.firma)}</div>`:''}</td>
+          <td class="hide-mobile" data-label="Protokol">${r.protokolUrl?`<a href="${esc(r.protokolUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ protokol</a>`:'<span class="muted">—</span>'}</td>
+          <td class="hide-mobile" data-label="Akce">${P().del?`<button class="rowbtn no" data-a="rev-del" data-v="${r._id}">Smazat</button>`:'<span class="muted">—</span>'}</td>
+        </tr>`;}).join('')
+      :`<tr><td colspan="15" class="empty">Žádné revize neodpovídají filtru.</td></tr>`}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+/* ---------- detail / formulář revize ---------- */
+function revMachineSelect(r){
+  const sec=cfg.sections.find(x=>x.name===r.usek); const ms=sec?sec.machines:[];
+  if(!sec) return `<select id="er-stroj" disabled><option value="">nejdřív vyber linku</option></select>`;
+  if(!ms.length) return `<select id="er-stroj" disabled><option value="">linka nemá stroje</option></select>`;
+  return `<select id="er-stroj"><option value="">— celá linka (bez stroje) —</option>${ms.map(m=>`<option ${r.stroj===m?'selected':''}>${esc(m)}</option>`).join('')}</select>`;
+}
+function revModalView(){
+  const r=editingRev, isNew=!r._id, ed=canRev();
+  const st=revState(r), d=revDaysLeft(r);
+  const wrapL=(id,label,inner,cls='',req=false)=>`<div class="f ${cls} ${revErrs[id]?'invalid':''}"><label>${esc(label)}${req&&ed?' <span class="req">*</span>':''}</label>${inner}${revErrs[id]?`<span class="err">${esc(revErrs[id])}</span>`:''}</div>`;
+  const roL=(label,val,cls='')=>`<div class="f ${cls}"><label>${esc(label)}</label><div class="ro">${val?esc(val):'<span class="muted">—</span>'}</div></div>`;
+  const druhy=(cfg.revTypes||[]);
+  const body = ed ? `
+      ${wrapL('druh','Druh revize',`<select id="er-druh"><option value="">— vyber druh —</option>${druhy.map(t=>`<option ${r.druh===t.name?'selected':''}>${esc(t.name)}</option>`).join('')}</select>`,'span2',true)}
+      <div class="f"><label>Číslo záznamu</label><div class="ro">${isNew?'<span class="muted">přidělí se po uložení</span>':esc(r.poradove)}</div></div>
+      <div class="f"><label>Stav platnosti</label><div class="ro">${badge(st,REV_STATES)}${d!==null&&!r.vyrazeno?` <span class="muted">${d<0?Math.abs(d)+' dní po platnosti':'zbývá '+d+' dní'}</span>`:''}</div></div>
+      ${wrapL('predmet','Zařízení / předmět revize',`<input id="er-predmet" value="${esc(r.predmet||'')}" placeholder="např. Ruční vrtačka Bosch GSB 18-2, Jeřáb hala A, Světlíky nad linkou Slush">`,'span3',true)}
+      ${wrapL('evidencni','Evidenční / výrobní číslo',`<input id="er-evidencni" value="${esc(r.evidencni||'')}" placeholder="např. INV-01234">`)}
+      ${wrapL('usek','Linka',`<select id="er-usek"><option value="">— nepřiřazeno —</option>${cfg.sections.map(x=>`<option ${r.usek===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>`)}
+      ${wrapL('stroj','Stroj / pod-úsek',revMachineSelect(r))}
+      ${wrapL('umisteni','Umístění',`<input id="er-umisteni" value="${esc(r.umisteni||'')}" placeholder="např. hala A, sklad nářadí, střecha">`,'span2')}
+      ${wrapL('datum','Datum provedení revize',`<input id="er-datum" type="date" value="${esc(r.datum||'')}">`,'',true)}
+      ${wrapL('interval','Interval (měsíce)',`<input id="er-interval" type="number" min="1" step="1" value="${esc(r.interval||'')}">`)}
+      ${wrapL('platnostDo','Platnost do',`<input id="er-platnost" type="date" value="${esc(r.platnostDo||'')}">`,'',true)}
+      <div class="f"><label>&nbsp;</label><div class="autohint grey">Platnost se dopočítá z data revize a intervalu. Můžeš ji přepsat ručně (např. když je v protokolu jiné datum).</div></div>
+      ${wrapL('vysledek','Výsledek revize',`<select id="er-vysledek">${REV_RESULTS.map(x=>`<option ${r.vysledek===x.k?'selected':''}>${x.k}</option>`).join('')}</select>`)}
+      ${wrapL('technik','Revizní technik',`<input id="er-technik" value="${esc(r.technik||'')}" placeholder="Jan Novák">`)}
+      ${wrapL('firma','Revizní firma',`<input id="er-firma" value="${esc(r.firma||'')}" placeholder="Revize s.r.o.">`,'span2')}
+      ${wrapL('zavady','Zjištěné závady a co je třeba řešit',`<textarea id="er-zavady" rows="3" placeholder="Vypiš závady z protokolu — jednu na řádek.">${esc(r.zavady||'')}</textarea>`,'span4')}
+      <div class="stockbox"><input type="checkbox" id="er-odstraneno" ${r.odstraneno?'checked':''}><label for="er-odstraneno">Závady jsou odstraněné</label></div>
+      <div class="stockbox"><input type="checkbox" id="er-vyrazeno" ${r.vyrazeno?'checked':''}><label for="er-vyrazeno">Zařízení vyřazeno z evidence (už se nehlídá)</label></div>
+      ${wrapL('protokolUrl','Odkaz na protokol (URL)',`<input id="er-protokol" value="${esc(r.protokolUrl||'')}" placeholder="https://… (odkaz na sken protokolu)">`,'span4')}
+      ${wrapL('poznamka','Poznámka',`<textarea id="er-poznamka" rows="2" placeholder="Doplňující informace">${esc(r.poznamka||'')}</textarea>`,'span4')}`
+  : `
+      <div class="f"><label>Stav platnosti</label><div class="ro">${badge(st,REV_STATES)}${d!==null&&!r.vyrazeno?` <span class="muted">${d<0?Math.abs(d)+' dní po platnosti':'zbývá '+d+' dní'}</span>`:''}</div></div>
+      <div class="f"><label>Číslo záznamu</label><div class="ro">${esc(r.poradove||'—')}</div></div>
+      ${roL('Druh revize',r.druh,'span2')}
+      ${roL('Zařízení / předmět revize',r.predmet,'span3')}
+      ${roL('Evidenční / výrobní číslo',r.evidencni)}
+      <div class="f span2"><label>Linka / stroj</label><div class="ro">${r.usek?esc(r.usek)+(r.stroj?' · '+esc(r.stroj):''):'<span class="muted">—</span>'}</div></div>
+      ${roL('Umístění',r.umisteni,'span2')}
+      ${roL('Datum provedení revize',dateCz(r.datum))}
+      ${roL('Interval (měsíce)',r.interval)}
+      ${roL('Platnost do',dateCz(r.platnostDo),'span2')}
+      <div class="f"><label>Výsledek revize</label><div class="ro">${r.vysledek?badge(r.vysledek,REV_RESULTS):'<span class="muted">—</span>'}</div></div>
+      ${roL('Revizní technik',r.technik)}
+      ${roL('Revizní firma',r.firma,'span2')}
+      ${roL('Zjištěné závady',r.zavady,'span4')}
+      ${roL('Závady odstraněny',r.odstraneno?'ano':'ne','span2')}
+      <div class="f span2"><label>Odkaz na protokol</label><div class="ro">${r.protokolUrl?`<a href="${esc(r.protokolUrl)}" target="_blank" rel="noopener">${esc(r.protokolUrl)}</a>`:'<span class="muted">—</span>'}</div></div>
+      ${roL('Poznámka',r.poznamka,'span4')}
+      <div class="f span2"><label>Zapsal</label><div class="ro">${esc(r.authorName||'—')} · ${esc(dateCz(r.created))}</div></div>`;
+  const roleBar = ed
+      ? `<div class="robar">Vyplň údaje z revizního protokolu. Datum platnosti se dopočítá samo z intervalu daného druhu revize.</div>`
+      : `<div class="robar">Záznam je jen ke čtení. Zakládat a upravovat revize smí skladník, schvalovatel a administrátor.</div>`;
+  return `<div class="overlay" data-a="rev-close-bg"><div class="modal">
+    <h3>${isNew?'Nový záznam revize':esc(r.poradove||'Revize')}${!isNew&&r.predmet?` <span style="font-weight:400;opacity:.8;font-size:12px">${esc(r.predmet)}</span>`:''}<button class="x" data-a="rev-close">✕</button></h3>
+    ${roleBar}
+    <div class="form">${body}</div>
+    ${(!isNew&&r.hist&&r.hist.length)?`<div class="hist"><b>Historie</b>${r.hist.slice(-8).reverse().map(h=>`<div>${esc(h)}</div>`).join('')}</div>`:''}
+    <div class="foot">
+      ${revFootMsg?`<span class="msg">${esc(revFootMsg)}</span>`:(ed?`<span class="muted">Pole s <span style="color:#c0392b">*</span> jsou povinná.</span>`:'')}
+      <div class="r">
+        ${(!isNew&&ed)?`<button class="btn-ghost" data-a="rev-renew" data-v="${r._id}">Nová revize tohoto zařízení</button>`:''}
+        ${(!isNew&&P().del)?`<button class="btn-danger" data-a="rev-del" data-v="${r._id}">Smazat</button>`:''}
+        <button class="btn-ghost" data-a="rev-close">${ed?'Zrušit':'Zavřít'}</button>
+        ${ed?`<button class="btn-primary" data-a="rev-save">${isNew?'Založit záznam':'Uložit změny'}</button>`:''}
+      </div>
+    </div>
+  </div></div>`;
+}
+
+/* ---------- sběr, kontrola a zápis revize ---------- */
+function collectRev(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:undefined;};
+  const c=id=>{const el=document.getElementById(id);return el?el.checked:undefined;};
+  const set={druh:g('er-druh'),predmet:g('er-predmet'),evidencni:g('er-evidencni'),usek:g('er-usek'),stroj:g('er-stroj'),
+    umisteni:g('er-umisteni'),datum:g('er-datum'),platnostDo:g('er-platnost'),vysledek:g('er-vysledek'),
+    technik:g('er-technik'),firma:g('er-firma'),zavady:g('er-zavady'),protokolUrl:g('er-protokol'),poznamka:g('er-poznamka')};
+  Object.keys(set).forEach(k=>{if(set[k]!==undefined)editingRev[k]=set[k];});
+  const iv=g('er-interval'); if(iv!==undefined) editingRev.interval=Number(iv)||0;
+  const od=c('er-odstraneno'); if(od!==undefined) editingRev.odstraneno=od;
+  const vy=c('er-vyrazeno'); if(vy!==undefined) editingRev.vyrazeno=vy;
+}
+function validateRev(){
+  revErrs={};
+  const empty=v=>v===''||v===null||v===undefined;
+  if(empty(editingRev.druh)) revErrs.druh='Vyber druh revize';
+  if(empty(editingRev.predmet)) revErrs.predmet='Napiš, čeho se revize týká';
+  if(empty(editingRev.datum)) revErrs.datum='Doplň datum provedení revize';
+  if(empty(editingRev.platnostDo)) revErrs.platnostDo='Doplň datum platnosti (nebo vyplň interval)';
+  if(editingRev.datum&&editingRev.platnostDo&&editingRev.platnostDo<editingRev.datum) revErrs.platnostDo='Platnost nemůže končit dřív, než byla revize provedená';
+  if(editingRev.protokolUrl&&!/^https?:\/\//i.test(editingRev.protokolUrl)) revErrs.protokolUrl='Odkaz musí začínat http:// nebo https://';
+  return Object.keys(revErrs).length===0;
+}
+async function createRevision(){
+  const poradove=await nextNumber('revSeq','RV');
+  const rec=Object.assign({},editingRev,{
+    poradove, author:me.uid, authorName:me.name, authorEmail:me.email, created:today(), createdTs:serverTimestamp(),
+    hist:[`${today()} · ${me.name} · založil záznam revize`]
+  });
+  delete rec._id;
+  await addDoc(collection(db,'revisions'),rec);
+  return poradove;
+}
+async function updateRevision(){
+  const id=editingRev._id; const old=revs.find(r=>r._id===id)||{};
+  const hist=(editingRev.hist||[]).slice();
+  if(old.platnostDo!==editingRev.platnostDo) hist.push(`${today()} · ${me.name} · platnost ${dateCz(old.platnostDo)} → ${dateCz(editingRev.platnostDo)}`);
+  else hist.push(`${today()} · ${me.name} · upravil záznam`);
+  const {_id,...data}=editingRev; data.hist=hist;
+  await updateDoc(doc(db,'revisions',id),data);
+}
+function newRevRecord(from){
+  const t=(cfg.revTypes||[])[0]||{};
+  const base={druh:t.name||'',predmet:'',evidencni:'',usek:'',stroj:'',umisteni:'',datum:today(),
+    interval:t.interval||12,platnostDo:'',vysledek:'vyhovuje',technik:'',firma:'',zavady:'',
+    odstraneno:false,vyrazeno:false,protokolUrl:'',poznamka:''};
+  if(from){
+    Object.assign(base,{druh:from.druh,predmet:from.predmet,evidencni:from.evidencni,usek:from.usek,stroj:from.stroj,
+      umisteni:from.umisteni,interval:from.interval,technik:from.technik,firma:from.firma,poznamka:from.poznamka});
+  }
+  base.platnostDo=addMonths(base.datum,base.interval);
+  return base;
+}
+
 /* ---------- administrace ---------- */
 function adminView(){
   return `
   <div class="notice">Nastavení i uživatelé jsou uložení ve Firebase a platí pro celý tým.</div>
   <div class="admgrid">
     <div class="panel adm"><h2>Úrovně oprávnění</h2>
-      <div class="body">${Object.entries(ROLES).map(([k,v])=>`<div class="rolebox"><b>${v.lvl}. ${esc(v.label)}</b><p>${esc(v.popis)}</p></div>`).join('')}</div></div>
+      <div class="body">${Object.entries(ROLES).map(([k,v])=>`<div class="rolebox"><b>${v.lvl}. ${esc(v.label)}</b><p>${esc(v.popis)}</p><p class="muted" style="font-size:11px">Revize: ${v.rev?'zakládá a upravuje záznamy':'jen si je prohlíží'}</p></div>`).join('')}</div></div>
 
     <div class="panel adm"><h2>Povinná pole <span class="right">brání uložení, pokud jsou prázdná</span></h2>
       <div class="tblwrap"><table><thead><tr><th class="no-sort">Pole</th><th class="no-sort" style="width:110px;text-align:center">Povinné</th></tr></thead>
@@ -764,6 +1091,21 @@ function adminView(){
         <div class="inline"><input id="new-acc" data-draft="new-acc" value="${esc(drafts['new-acc']||'')}" placeholder="číslo účtu" style="max-width:150px">
           <input id="new-acc-name" data-draft="new-acc-name" value="${esc(drafts['new-acc-name']||'')}" placeholder="popis účtu">
           <button class="btn-primary" data-a="add-acc">Přidat</button></div>
+      </div></div>
+
+    <div class="panel adm"><h2>Druhy revizí a intervaly <span class="right">interval v měsících</span></h2>
+      <div class="tblwrap"><table><thead><tr><th class="no-sort">Druh revize</th><th class="no-sort" style="width:120px">Interval</th><th class="no-sort" style="width:80px"></th></tr></thead>
+        <tbody>${(cfg.revTypes||[]).map(t=>`<tr><td>${esc(t.name)}</td>
+          <td><input type="number" min="1" step="1" value="${esc(t.interval)}" data-a="revtype-interval" data-v="${esc(t.name)}"></td>
+          <td><button class="rowbtn" data-a="del-revtype" data-v="${esc(t.name)}">Odebrat</button></td></tr>`).join('')}</tbody></table></div>
+      <div class="body" style="border-top:1px solid var(--line)">
+        <div class="inline"><input id="new-revtype" data-draft="new-revtype" value="${esc(drafts['new-revtype']||'')}" placeholder="Nový druh revize">
+          <input id="new-revtype-int" data-draft="new-revtype-int" type="number" min="1" step="1" value="${esc(drafts['new-revtype-int']||'')}" placeholder="měsíce" style="max-width:110px">
+          <button class="btn-primary" data-a="add-revtype">Přidat</button></div>
+        <div class="f" style="margin-top:14px"><label>Hlásit blížící se konec platnosti — kolik dní dopředu</label>
+          <div class="inline"><input id="r-warn" type="number" min="1" step="1" value="${esc(cfg.revWarnDays||30)}" style="max-width:120px">
+            <button class="btn-primary" data-a="save-revwarn">Uložit</button></div></div>
+        <p class="muted" style="font-size:11px;margin:10px 0 0;line-height:1.55">Interval určuje, o kolik měsíců se od data revize spočítá platnost. Změna intervalu se projeví u nově zakládaných záznamů — už uložené revize si drží svoje datum.</p>
       </div></div>
 
     <div class="panel adm"><h2>Kurzy</h2>
@@ -890,16 +1232,18 @@ function applyAutoStatus(row,oldStatus,touched){
   return null;
 }
 
-/* pořadové číslo: bezpečně přes transakci nad meta/config.seq */
-async function nextNumber(){
+/* Pořadové číslo: bezpečně přes TRANSAKCI nad meta/config.
+   Požadavky jedou přes pole `seq` (NP-…), revize přes `revSeq` (RV-…).
+   Transakci neruš — jinak dostanou dva lidé naráz stejné číslo. */
+async function nextNumber(field='seq',prefix='NP'){
   const ref=doc(db,'meta','config');
   const year=new Date().getFullYear();
   const n=await runTransaction(db,async tx=>{
-    const s=await tx.get(ref); const seq=((s.data()||{}).seq||0)+1;
-    tx.update(ref,{seq}); return seq;
+    const s=await tx.get(ref); const seq=((s.data()||{})[field]||0)+1;
+    tx.update(ref,{[field]:seq}); return seq;
   });
-  if(cfg) cfg.seq=n;
-  return 'NP-'+year+'-'+String(n).padStart(3,'0');
+  if(cfg) cfg[field]=n;
+  return prefix+'-'+year+'-'+String(n).padStart(3,'0');
 }
 
 /* ---------- zápisy do Firestore ---------- */
@@ -936,7 +1280,7 @@ function bind(){
   document.querySelectorAll('[data-a]').forEach(el=>{
     const a=el.dataset.a,v=el.dataset.v;
     const isInput = (el.tagName==='SELECT'||el.type==='checkbox'||el.type==='file'||
-      (el.tagName==='INPUT'&&['acc-name','user-name','user-team','user-role'].includes(a)));
+      (el.tagName==='INPUT'&&['acc-name','user-name','user-team','user-role','revtype-interval'].includes(a)));
     if(isInput) el.onchange=ev=>act(a,v,el,ev);
     else el.onclick=ev=>{ev.stopPropagation();act(a,v,el,ev);};
   });
@@ -947,6 +1291,24 @@ function bind(){
   ['e-cena','e-mnozstvi','e-mena'].forEach(id=>{const el=document.getElementById(id);if(el){el.oninput=recalc;el.onchange=recalc;}});
   document.querySelectorAll('[data-draft]').forEach(el=>{const h=()=>{drafts[el.dataset.draft]=el.value;};el.oninput=h;el.onchange=h;});
   const us=document.getElementById('e-usek');if(us)us.onchange=()=>{collect();editing.stroj='';render();};
+  /* --- revize: filtry --- */
+  const rq=document.getElementById('fr-q');
+  if(rq) rq.oninput=()=>{revFilters.q=rq.value;const pos=rq.selectionStart;render();const n=document.getElementById('fr-q');n.focus();n.setSelectionRange(pos,pos);};
+  ['druh','usek','stav'].forEach(k=>{const el=document.getElementById('fr-'+k);if(el)el.onchange=()=>{revFilters[k]=el.value;render();};});
+  const rm=document.getElementById('fr-mine');if(rm)rm.onchange=()=>{revFilters.mine=rm.checked;render();};
+  /* --- revize: formulář --- */
+  const rus=document.getElementById('er-usek');if(rus)rus.onchange=()=>{collectRev();editingRev.stroj='';render();};
+  const rd=document.getElementById('er-druh');if(rd)rd.onchange=()=>{
+    collectRev();
+    const t=revType(editingRev.druh); if(t) editingRev.interval=t.interval;
+    editingRev.platnostDo=addMonths(editingRev.datum,editingRev.interval);
+    render();
+  };
+  ['er-datum','er-interval'].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=()=>{
+    collectRev();
+    editingRev.platnostDo=addMonths(editingRev.datum,editingRev.interval);
+    render();
+  };});
   const ns=document.getElementById('e-newstock');if(ns)ns.onchange=()=>{collect();render();};
   const lp=document.getElementById('lg-pass');if(lp)lp.onkeydown=e=>{if(e.key==='Enter')act('login');};
   if(qrOpen) startQr();
@@ -1046,7 +1408,47 @@ async function act(a,v,el,ev){
       if(a==='close-bg'&&ev&&ev.target!==el)return;
       stopQr(); qrOpen=false; editing=null;errs={};footMsg='';break;
 
+    /* --- REVIZE --- */
+    case 'rev-new': editingRev=newRevRecord(null); revErrs={}; revFootMsg=''; break;
+    case 'rev-open': editingRev=JSON.parse(JSON.stringify(revs.find(r=>r._id===v))); revErrs={}; revFootMsg=''; break;
+    case 'rev-renew':{
+      if(!canRev())return;
+      const src=revs.find(x=>x._id===v)||editingRev;
+      editingRev=newRevRecord(src); revErrs={}; revFootMsg='';
+      toast('Vyplň datum nové revize a výsledek. Původní záznam zůstane v historii.','ok');
+      break;
+    }
+    case 'rev-sort': revSort=(revSort.col===v)?{col:v,dir:-revSort.dir}:{col:v,dir:1}; break;
+    case 'rev-clear': revFilters={q:'',druh:'',usek:'',stav:'',mine:false}; break;
+    case 'rev-close': case 'rev-close-bg':
+      if(a==='rev-close-bg'&&ev&&ev.target!==el)return;
+      editingRev=null; revErrs={}; revFootMsg=''; break;
+    case 'rev-save':{
+      if(!canRev())return;
+      collectRev();
+      if(!validateRev()){revFootMsg='Doplň povinná pole označená červeně.';render();return;}
+      const isNew=!editingRev._id;
+      try{
+        if(isNew){const no=await createRevision();editingRev=null;revFootMsg='';toast('Revize '+no+' zapsána.','ok');}
+        else{await updateRevision();editingRev=null;revFootMsg='';toast('Změny uloženy.','ok');}
+      }catch(e){revFootMsg='Uložení selhalo: '+e.message;render();return;}
+      break;
+    }
+    case 'rev-del':{
+      if(!P().del)return; const r=revs.find(x=>x._id===v); if(!r)return;
+      if(await askYes(`Smazat záznam revize ${r.poradove}? Tohle nejde vrátit.`,{title:'Smazání',ok:'Smazat',danger:true})){
+        try{await deleteDoc(doc(db,'revisions',v));editingRev=null;toast('Záznam smazán.','ok');}catch(e){toast('Nešlo smazat: '+e.message,'err');}
+      }break;
+    }
+
     case 'export':{
+      if(tab==='revize'){
+        const h=['Stav platnosti','Číslo','Druh revize','Zařízení / předmět','Evidenční číslo','Linka','Stroj','Umístění','Datum revize','Interval (měsíce)','Platnost do','Zbývá dní','Výsledek','Závady','Závady odstraněny','Revizní technik','Revizní firma','Odkaz na protokol','Vyřazeno','Poznámka','Zapsal'];
+        const ln=[h.join(';')].concat(visibleRevs().map(r=>[revState(r),r.poradove,r.druh,r.predmet,r.evidencni,r.usek,r.stroj,r.umisteni,r.datum,r.interval,r.platnostDo,(revDaysLeft(r)===null?'':revDaysLeft(r)),r.vysledek,r.zavady,r.odstraneno?'ano':'ne',r.technik,r.firma,r.protokolUrl,r.vyrazeno?'ano':'ne',r.poznamka,r.authorName]
+          .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';')));
+        const b2=new Blob(['\uFEFF'+ln.join('\r\n')],{type:'text/csv'});
+        const a3=document.createElement('a');a3.href=URL.createObjectURL(b2);a3.download='revize.csv';a3.click();return;
+      }
       const head=['Stav','Druh','Pořadové číslo','Vytvořeno','Skladové číslo','Popis položky','Důvod objednání','Priorita','Množství','Cena/ks','Měna','Cena celkem','Cena EUR','Výrobce','Účet','Popis účtu','Linka','Stroj','Předpokládané datum dodání','MIN','MAX','URL','Upozornit e-mailem','Poznámka','Zadal','Schválil','Schváleno dne'];
       const lines=[head.join(';')].concat(visibleRows().map(r=>[r.status,r.typ||'Nový požadavek',r.poradove,r.created,r.sklad,r.popis,r.duvod,r.priorita,r.mnozstvi,r.cena,r.mena,total(r).toFixed(2),totalEur(r).toFixed(2),r.vyrobce,r.ucet,accName(r.ucet),r.usek,r.stroj,r.datum,r.min,r.max,r.url,r.notifyEmail||'',r.poznamka,r.authorName,r.approvedBy||'',r.approvedAt||'']
         .map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';')));
@@ -1085,6 +1487,30 @@ async function act(a,v,el,ev){
       if(!P().admin)return; const used=rows.filter(r=>r.ucet===v).length;
       if(!await askYes(used?`Účet ${v} je u ${used} požadavků — zůstane u nich, jen zmizí z nabídky.`:`Odebrat účet ${v}?`,{title:'Odebrání účtu',ok:'Odebrat',danger:true}))return;
       cfg.accounts=cfg.accounts.filter(x=>x.code!==v);await saveConfig();break;
+    }
+    case 'add-revtype':{
+      if(!P().admin)return;
+      const n=(drafts['new-revtype']||'').trim(); const iv=Number(drafts['new-revtype-int'])||12;
+      if(!n){toast('Vyplň název druhu revize.','err');return;}
+      if(!cfg.revTypes) cfg.revTypes=[];
+      if(cfg.revTypes.some(t=>t.name.toLowerCase()===n.toLowerCase())){toast('Druh revize už existuje.','err');return;}
+      cfg.revTypes.push({name:n,interval:iv});
+      delete drafts['new-revtype'];delete drafts['new-revtype-int'];await saveConfig();break;
+    }
+    case 'revtype-interval':{
+      if(!P().admin)return; const t=(cfg.revTypes||[]).find(x=>x.name===v);
+      if(t) t.interval=Number(el.value)||t.interval;
+      await saveConfig(); return;
+    }
+    case 'del-revtype':{
+      if(!P().admin)return; const used=revs.filter(r=>r.druh===v).length;
+      if(!await askYes(used?`Druh revize ${v} je u ${used} záznamů — ty zůstanou, jen zmizí z nabídky.`:`Odebrat druh revize ${v}?`,{title:'Odebrání druhu revize',ok:'Odebrat',danger:true}))return;
+      cfg.revTypes=(cfg.revTypes||[]).filter(t=>t.name!==v);await saveConfig();break;
+    }
+    case 'save-revwarn':{
+      if(!P().admin)return;
+      cfg.revWarnDays=Number(document.getElementById('r-warn').value)||cfg.revWarnDays;
+      await saveConfig();toast('Uloženo.','ok');break;
     }
     case 'save-rates':{
       if(!P().admin)return;
