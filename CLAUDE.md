@@ -30,8 +30,11 @@ nim build proces. Bezpečnost řeší pravidla Firestore, ne skrývání klíč�
 
 ## Datový model (Firestore)
 - kolekce `requests` — jeden dokument = jeden požadavek
+- kolekce `revisions` — jeden dokument = jedna provedená revize jednoho zařízení
+  (druh, předmět, datum revize, interval v měsících, platnost do, výsledek, závady)
 - kolekce `users` — id dokumentu = uid uživatele; pole `name`, `role`, `team`
-- dokument `meta/config` — účty, úseky, stroje, povinná pole, kurzy, čítač `seq`
+- dokument `meta/config` — účty, úseky, stroje, povinná pole, kurzy, čítače `seq`
+  a `revSeq`, druhy revizí `revTypes` a `revWarnDays`
 - Role a úrovně: `zadavatel` (1), `skladnik` (2), `schvalovatel` (3), `admin` (4).
   Práva jsou v objektu `ROLES` v kódu a SOUČASNĚ vynucená bezpečnostními pravidly
   Firestore na serveru (soubor `firestore.rules`).
