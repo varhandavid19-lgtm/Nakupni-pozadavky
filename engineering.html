@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engineering — YFAI minimo</title>
+<style>
+  :root{
+    --navy-1:#0f2f5f; --navy-2:#1b4b8f; --panel:#1e4c8a;
+    --bg:#f4f6f9; --card:#ffffff; --line:#dde4ec; --text:#16233a; --muted:#6b7a90;
+    --teal:#0d7377; --teal-bg:#e4f2f2; --teal-dark:#0a5b5e;
+    --green:#1f9254; --green-bg:#e8f6ee; --red:#c0392b; --red-bg:#fdecea;
+    --amber:#b7791f; --amber-bg:#fdf3e2; --blue:#2563a8; --blue-bg:#e9f1fb;
+    --purple:#6b46c1; --purple-bg:#f0ebfa; --grey:#6b7a90; --grey-bg:#eef1f5;
+    --radius:6px; font-synthesis-weight:none;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:13px}
+  button{font-family:inherit;font-size:12px;cursor:pointer;border-radius:var(--radius);border:1px solid transparent;padding:7px 12px}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input,select,textarea{font-family:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--text);width:100%}
+  input:focus,select:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px solid #2a5ea3;outline-offset:1px}
+  a{color:#2563a8}
+
+  header{background:linear-gradient(90deg,var(--navy-1),var(--navy-2));color:#fff;padding:12px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  header h1{font-size:26px;margin:0;font-weight:800;letter-spacing:-.3px;line-height:1.1}
+  header .sub{font-size:11.5px;opacity:.72;margin-top:3px}
+  .brand{background:#fff;border-radius:8px;padding:9px 14px;display:flex;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.22);flex:none}
+  .brand svg{display:block;height:52px;width:auto}
+  @media(max-width:640px){header h1{font-size:20px}.brand svg{height:40px}}
+  .chips{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:20px;padding:4px 11px;font-size:11px;white-space:nowrap}
+  .chip.teal{background:var(--teal);border-color:var(--teal)}
+  .btn-logout{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:20px;font-size:11px;padding:4px 12px}
+
+  .tabbar{background:#fff;border-bottom:1px solid var(--line);padding:9px 18px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  .tab{background:#eef1f5;color:#41506b;border:1px solid var(--line);font-weight:600}
+  .tab.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .tab .cnt{display:inline-block;margin-left:6px;background:rgba(0,0,0,.10);border-radius:10px;padding:0 6px;font-size:10px;font-weight:700}
+  .tab.active .cnt{background:rgba(255,255,255,.25)}
+  .spacer{margin-left:auto;display:flex;gap:8px}
+  .btn-primary{background:var(--navy-2);color:#fff}
+  .btn-teal{background:var(--teal);color:#fff;font-weight:700}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:#41506b}
+  .btn-ok{background:var(--green);color:#fff}
+  .btn-danger{background:var(--red);color:#fff}
+
+  main{padding:14px 18px 46px;max-width:1560px;margin:0 auto}
+  .notice{background:var(--blue-bg);border:1px solid #cbdff5;border-radius:var(--radius);padding:9px 12px;margin-bottom:12px;font-size:12px;color:#28456e}
+  .notice.warn{background:var(--amber-bg);border-color:#f2dfb8;color:#7a5410}
+  .notice.demo{background:#fff4e5;border-color:#ffd9a8;color:#8a4b09;display:flex;gap:10px;align-items:flex-start}
+  .notice.demo b{white-space:nowrap}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+  .kcard{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--grey);border-radius:var(--radius);padding:11px 13px}
+  .kcard.ok{border-left-color:var(--green)} .kcard.warn{border-left-color:var(--amber)}
+  .kcard.bad{border-left-color:var(--red)} .kcard.info{border-left-color:var(--teal)}
+  .kcard .lbl{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .kcard .val{font-size:27px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+  .kcard .val small{font-size:14px;font-weight:600;color:var(--muted);margin-left:2px}
+  .kcard .note{font-size:11px;color:var(--muted)}
+  .kcard .note .up{color:var(--red);font-weight:700}
+  .kcard .note .down{color:var(--green);font-weight:700}
+  .spark{display:block;margin-top:6px}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
+  .panel > h2{background:var(--panel);color:#fff;margin:0;font-size:13px;font-weight:700;padding:9px 13px;display:flex;align-items:center;gap:10px}
+  .panel > h2 .right{margin-left:auto;font-weight:500;font-size:11px;opacity:.85;display:flex;gap:8px;align-items:center}
+  .panel > h2 .right button{padding:3px 9px;font-size:11px}
+  .panel .body{padding:13px}
+  .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;align-items:start}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}
+  @media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:11px 13px;border-bottom:1px solid var(--line);background:#fafbfd}
+  .filters input,.filters select{width:auto;min-width:132px}
+  .filters .grow{flex:1;min-width:190px}
+  label.check{display:flex;gap:6px;align-items:center;font-size:12px;color:#41506b;white-space:nowrap;cursor:pointer}
+  label.check input{width:auto}
+
+  .tblwrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
+  thead th{background:#16355f;color:#fff;text-align:left;padding:8px 10px;font-size:10px;letter-spacing:.6px;text-transform:uppercase}
+  tbody td{padding:8px 10px;border-bottom:1px solid #eef1f5;vertical-align:top;background:var(--row,transparent)}
+  tbody tr:hover td{filter:brightness(.975)}
+  tr.crit td{background:#f8d2ce}
+  tr.crit td:first-child{box-shadow:inset 4px 0 0 var(--red)}
+  tr.clickable{cursor:pointer}
+  td.desc{white-space:normal;min-width:210px;max-width:340px}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .empty{padding:26px;text-align:center;color:var(--muted)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:8px 13px;border-bottom:1px solid var(--line);background:#fff;font-size:11px;color:var(--muted)}
+  .legend i{display:inline-block;width:22px;height:11px;border-radius:3px;border:1px solid var(--line);margin-right:5px;vertical-align:-2px;font-style:normal}
+
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+  .b-grey{background:var(--grey-bg);color:#4a5a70;border-color:#dfe4ea}
+  .b-blue{background:var(--blue-bg);color:var(--blue);border-color:#cbdff5}
+  .b-amber{background:var(--amber-bg);color:var(--amber);border-color:#f2dfb8}
+  .b-green{background:var(--green-bg);color:var(--green);border-color:#c4e6d3}
+  .b-green-dark{background:#157347;color:#fff;border-color:#0f5c37}
+  .b-purple{background:var(--purple-bg);color:var(--purple);border-color:#ddd2f5}
+  .b-red{background:var(--red-bg);color:var(--red);border-color:#f5cfca}
+  .b-teal{background:var(--teal-bg);color:var(--teal-dark);border-color:#bfdedd}
+
+  .bar{height:8px;background:#eef1f5;border-radius:5px;overflow:hidden;min-width:70px;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;background:var(--teal)}
+  .bar.late i{background:var(--red)}
+  .barwrap{display:flex;align-items:center;gap:7px}
+  .barwrap span{font-variant-numeric:tabular-nums;font-size:11px;color:var(--muted);width:32px;text-align:right}
+
+  .newbar{margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap}
+  .btn-new{background:linear-gradient(180deg,#0d7377,#0a5b5e);color:#fff;font-size:16px;font-weight:800;padding:14px 28px;border-radius:10px;
+    box-shadow:0 4px 14px rgba(13,115,119,.35);letter-spacing:.3px;text-transform:uppercase}
+  .btn-new:hover{background:linear-gradient(180deg,#0a5b5e,#084a4c)}
+  .btn-new.orange{background:linear-gradient(180deg,#f6821f,#e8590c);box-shadow:0 4px 14px rgba(232,89,12,.35)}
+  .btn-new.orange:hover{background:linear-gradient(180deg,#e8590c,#c94f0a)}
+
+  /* analýzy — karty */
+  .anlgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+  .anl{background:#fff;border:1px solid var(--line);border-top:4px solid var(--grey);border-radius:var(--radius);padding:12px 13px;cursor:pointer;display:flex;flex-direction:column;gap:7px}
+  .anl:hover{box-shadow:0 4px 14px rgba(16,35,58,.10)}
+  .anl.s-open{border-top-color:var(--red)} .anl.s-work{border-top-color:var(--amber)}
+  .anl.s-check{border-top-color:var(--blue)} .anl.s-done{border-top-color:var(--green)}
+  .anl .top{display:flex;align-items:center;gap:8px}
+  .anl .no{font-weight:800;color:var(--teal-dark);font-variant-numeric:tabular-nums}
+  .anl .ttl{font-size:14px;font-weight:700;line-height:1.3}
+  .anl .meta{font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+  .anl .foot{margin-top:auto;display:flex;gap:8px;align-items:center;font-size:11px;color:var(--muted);border-top:1px dotted var(--line);padding-top:7px}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(12,26,48,.55);display:flex;align-items:flex-start;justify-content:center;padding:24px 14px;overflow:auto;z-index:50}
+  .modal{background:#fff;border-radius:10px;width:100%;max-width:1040px;margin:auto;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+  .modal h3{background:linear-gradient(90deg,var(--navy-1),var(--navy-2));color:#fff;margin:0;padding:14px 18px;font-size:17px;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:10px}
+  .modal h3 .x{margin-left:auto;background:transparent;border:0;color:#fff;font-size:20px;line-height:1;padding:0 4px}
+  .form{padding:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f label{font-size:12.5px;font-weight:700;color:#41506b}
+  .f .req{color:var(--red)}
+  .f.span2{grid-column:span 2}.f.span3{grid-column:span 3}.f.span4{grid-column:span 4}
+  .f .ro{background:#fafbfd;border:1px solid var(--line);border-radius:var(--radius);padding:7px 9px;min-height:33px;white-space:pre-wrap}
+  .modal .foot{padding:12px 15px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;background:#fafbfd;border-radius:0 0 10px 10px;flex-wrap:wrap}
+  .modal .foot .r{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .sect{grid-column:span 4;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--teal-dark);border-bottom:2px solid var(--teal-bg);padding-bottom:5px;margin-top:4px}
+  .why{grid-column:span 4;display:flex;flex-direction:column;gap:8px}
+  .why .row{display:flex;gap:10px;align-items:flex-start}
+  .why .n{flex:none;width:74px;font-size:11px;font-weight:800;color:#fff;background:var(--teal);border-radius:4px;padding:6px 8px;text-align:center}
+  .why .n.root{background:var(--red)}
+  .why .t{flex:1;background:#fafbfd;border:1px solid var(--line);border-radius:var(--radius);padding:7px 9px;white-space:pre-wrap}
+  .hist{padding:0 18px 14px;font-size:11px;color:var(--muted)}
+  .hist div{padding:3px 0;border-top:1px dotted var(--line)}
+
+  /* import */
+  .steps{display:flex;gap:0;align-items:stretch;padding:0;margin:0 0 14px;list-style:none;flex-wrap:wrap}
+  .steps li{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);border-right:0;padding:10px 14px;font-size:12px;color:var(--muted);display:flex;gap:9px;align-items:center}
+  .steps li:first-child{border-radius:var(--radius) 0 0 var(--radius)}
+  .steps li:last-child{border-right:1px solid var(--line);border-radius:0 var(--radius) var(--radius) 0}
+  .steps li b{flex:none;width:22px;height:22px;border-radius:50%;background:var(--grey-bg);color:#4a5a70;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .steps li.on{background:var(--teal-bg);color:var(--teal-dark);font-weight:700;border-color:#bfdedd}
+  .steps li.on b{background:var(--teal);color:#fff}
+  .steps li.done b{background:var(--green);color:#fff}
+  .drop{border:2px dashed #b9c8da;border-radius:10px;background:#fbfcfe;padding:34px 20px;text-align:center;color:var(--muted)}
+  .drop.hot{border-color:var(--teal);background:var(--teal-bg)}
+  .drop .big{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+  .drop .hint{font-size:12px;margin-top:8px}
+  .maptbl td{white-space:normal}
+  .maptbl select{min-width:190px}
+  .ok-line{display:flex;align-items:center;gap:8px;color:var(--green);font-weight:700}
+  .file{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;margin-bottom:12px}
+  .file .nm{font-weight:700} .file .sz{color:var(--muted);font-size:11px}
+
+  /* grafy */
+  .chart{width:100%;height:auto;display:block;overflow:visible}
+  .chart text{font-family:inherit}
+  .ax{font-size:10px;fill:var(--muted)}
+  .gridline{stroke:#eef1f5;stroke-width:1}
+  .tip{position:fixed;pointer-events:none;background:#16233a;color:#fff;font-size:11.5px;padding:6px 9px;border-radius:5px;box-shadow:0 6px 18px rgba(0,0,0,.28);z-index:90;opacity:0;transition:opacity .1s;max-width:250px}
+  .tip b{display:block;font-size:12px;margin-bottom:2px}
+  .chartlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:8px}
+  .chartlegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px;font-style:normal}
+  .chartlegend i.line{height:0;border-top:2px dashed var(--navy-2);border-radius:0;width:16px;vertical-align:3px}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand" id="brand"></div>
+  <div>
+    <h1>Engineering — řízení oddělení</h1>
+    <div class="sub">Prostoje · analýzy problémů · akční plány · KPI &nbsp;|&nbsp; YFAI minimo</div>
+  </div>
+  <div class="chips">
+    <span class="chip">Závod: Přeštice</span>
+    <span class="chip teal">David Varhaník · manažer</span>
+    <button class="btn-logout">Odhlásit</button>
+  </div>
+</header>
+
+<nav class="tabbar" id="tabbar"></nav>
+
+<main id="main"></main>
+
+<div class="tip" id="tip"></div>
+
+<script>
+/* ==========================================================
+   Engineering — GRAFICKÝ NÁVRH (klikací maketa)
+   Zatím BEZ Firebase: data jsou ukázková, drží se v paměti.
+   Až návrh odsouhlasíme, napojí se stejné obrazovky na Firestore.
+   ========================================================== */
+
+function logoSvg(){
+  return `<svg viewBox="0 0 300 138" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="YFAI minimo">
+    <defs>
+      <pattern id="yfai-stripes" patternUnits="userSpaceOnUse" x="0" y="8" width="10" height="9.8">
+        <rect x="0" y="0" width="10" height="5.9" fill="#1f66b5"/>
+      </pattern>
+    </defs>
+    <text x="150" y="86" text-anchor="middle" fill="url(#yfai-stripes)"
+      font-family="'Arial Black',Arial,sans-serif" font-weight="900" font-size="108"
+      textLength="244" lengthAdjust="spacingAndGlyphs">YFAI</text>
+    <text x="150" y="128" text-anchor="middle" fill="#111418"
+      font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="42"
+      letter-spacing="1" textLength="246" lengthAdjust="spacingAndGlyphs">minimo</text>
+  </svg>`;
+}
+document.getElementById('brand').innerHTML = logoSvg();
+
+/* ---------- ukázková data ---------- */
+
+const LINES = ['Lis 400 t','Montážní linka A','Montážní linka B','Svařovna R2','CNC 03','Lakovna'];
+const REASONS = [
+  {code:'M01', cat:'Porucha stroje',    name:'Porucha — mechanika'},
+  {code:'M02', cat:'Porucha stroje',    name:'Porucha — elektro / senzor'},
+  {code:'P01', cat:'Přestavba',         name:'Přestavba / seřízení'},
+  {code:'L01', cat:'Materiál',          name:'Chybí materiál'},
+  {code:'Q01', cat:'Kvalita',           name:'Zmetkovitost — doladění'},
+  {code:'H01', cat:'Lidé',              name:'Chybí operátor'},
+  {code:'U01', cat:'Údržba',            name:'Plánovaná údržba'}
+];
+
+let DOWNTIME = [
+  {id:1, date:'2026-08-20', shift:'R', line:'Lis 400 t',        from:'06:42', to:'08:05', min:83, code:'M01', desc:'Prasklá pružina vyhazovače, výměna + seřízení', anl:'ANL-2026-014', src:'Symestic'},
+  {id:2, date:'2026-08-20', shift:'R', line:'Montážní linka A', from:'09:10', to:'09:34', min:24, code:'L01', desc:'Chybí konektory 4pin — doběh ze skladu',        anl:'', src:'Symestic'},
+  {id:3, date:'2026-08-20', shift:'O', line:'Svařovna R2',      from:'15:20', to:'16:48', min:88, code:'M02', desc:'Výpadek svařovacího zdroje, reset + kontrola',  anl:'ANL-2026-016', src:'Symestic'},
+  {id:4, date:'2026-08-19', shift:'R', line:'CNC 03',           from:'07:05', to:'07:41', min:36, code:'P01', desc:'Přestavba na díl 4419-B',                       anl:'', src:'Symestic'},
+  {id:5, date:'2026-08-19', shift:'O', line:'Montážní linka B', from:'14:02', to:'16:15', min:133,code:'M01', desc:'Zaseknutý dopravník, poškozený řetěz',          anl:'ANL-2026-015', src:'Symestic'},
+  {id:6, date:'2026-08-19', shift:'N', line:'Lakovna',          from:'22:30', to:'23:12', min:42, code:'Q01', desc:'Nedostatečné krytí, doladění trysek',           anl:'', src:'Symestic'},
+  {id:7, date:'2026-08-18', shift:'R', line:'Lis 400 t',        from:'10:15', to:'11:52', min:97, code:'M01', desc:'Opakovaně pružina vyhazovače — 3. výskyt',      anl:'ANL-2026-014', src:'Symestic'},
+  {id:8, date:'2026-08-18', shift:'O', line:'Montážní linka A', from:'13:40', to:'14:02', min:22, code:'H01', desc:'Chybí operátor na stanici 3',                   anl:'', src:'ruční'},
+  {id:9, date:'2026-08-18', shift:'N', line:'CNC 03',           from:'02:10', to:'03:35', min:85, code:'M02', desc:'Chyba osy Z — havarijní zastavení',             anl:'ANL-2026-017', src:'Symestic'},
+  {id:10,date:'2026-08-17', shift:'R', line:'Svařovna R2',      from:'08:00', to:'08:55', min:55, code:'U01', desc:'Plánovaná údržba — výměna hořáku',              anl:'', src:'Symestic'},
+  {id:11,date:'2026-08-17', shift:'O', line:'Montážní linka B', from:'17:25', to:'18:00', min:35, code:'L01', desc:'Chybí těsnění — zpožděná dodávka',              anl:'', src:'Symestic'},
+  {id:12,date:'2026-08-17', shift:'R', line:'Lakovna',          from:'11:05', to:'11:40', min:35, code:'P01', desc:'Změna odstínu — proplach',                       anl:'', src:'Symestic'}
+];
+
+const ANALYSES = [
+  {no:'ANL-2026-014', ttl:'Opakovaná porucha vyhazovače na lisu 400 t', line:'Lis 400 t', status:'v řešení', owner:'M. Kolář',
+   opened:'2026-08-18', loss:180, cat:'Porucha stroje', actions:4, done:1,
+   detail:'Za 14 dní 3× prasklá pružina vyhazovače. Celkem 180 min prostoje, 2× zastavená dodávka na zákazníka.',
+   immediate:'Výměna pružiny ze skladu, kontrola nastavení zdvihu, dočasně snížena rychlost o 8 %.',
+   whys:['Lis stál — díl se nevyhodil z formy.','Praskla pružina vyhazovače.','Pružina byla trvale přetěžovaná.','Zdvih vyhazovače je nastavený o 4 mm výš, než je předpis.','Po přestavbě v květnu se nastavení neověřovalo — chybí kontrolní bod v seřizovacím listu.'],
+   root:'V seřizovacím listu chybí kontrola zdvihu vyhazovače po přestavbě.',
+   check:'Sledovat 4 týdny — cíl 0 poruch. Ověří údržba při TPM obchůzce.'},
+  {no:'ANL-2026-015', ttl:'Zaseknutý dopravník na montážní lince B', line:'Montážní linka B', status:'ověřování', owner:'J. Nováková',
+   opened:'2026-08-19', loss:133, cat:'Porucha stroje', actions:2, done:2,
+   detail:'Poškozený řetěz dopravníku, 133 min stání celé linky, přesčas 2 h.',
+   immediate:'Výměna článků řetězu, promazání, kontrola napnutí.',
+   whys:['Linka stála — dopravník se zasekl.','Poškozený článek řetězu.','Řetěz byl suchý, bez mazání.','Automatické mazání nedávkovalo — ucpaná tryska.','Tryska mazání není v plánu preventivní údržby.'],
+   root:'Mazací systém dopravníku není zahrnutý v plánu preventivní údržby.',
+   check:'Doplněno do TPM plánu, kontrola po 1 měsíci.'},
+  {no:'ANL-2026-016', ttl:'Výpadky svařovacího zdroje R2', line:'Svařovna R2', status:'otevřená', owner:'P. Dvořák',
+   opened:'2026-08-20', loss:88, cat:'Porucha stroje', actions:1, done:0,
+   detail:'Zdroj hlásí chybu přehřátí, opakovaně od začátku srpna.',
+   immediate:'Reset zdroje, vyčištěné filtry, měření teploty v rozvaděči.',
+   whys:['Zdroj se vypnul chybou přehřátí.','Teplota v rozvaděči přes 52 °C.','Chlazení rozvaděče nestíhá.','Filtr ventilátoru zanesený prachem z broušení.','Interval čištění filtrů je 6 měsíců, provoz to nestačí.'],
+   root:'Interval čištění filtrů neodpovídá prašnosti provozu (návrh: 1× měsíčně).',
+   check:'Po změně intervalu sledovat teplotu 6 týdnů.'},
+  {no:'ANL-2026-017', ttl:'Chyba osy Z na CNC 03', line:'CNC 03', status:'otevřená', owner:'M. Kolář',
+   opened:'2026-08-18', loss:85, cat:'Porucha stroje', actions:2, done:0,
+   detail:'Havarijní zastavení v noční směně, chyba polohy osy Z.',
+   immediate:'Referencování osy, kontrola vedení, stroj uvolněn s omezením posuvu.',
+   whys:['Stroj havarijně zastavil.','Odchylka polohy osy Z nad limit.','Vůle v kuličkovém šroubu.','Šroub je za hranicí životnosti (11 let).','Není evidence životnosti klíčových komponent.'],
+   root:'Chybí evidence životnosti a plán obnovy klíčových komponent strojů.',
+   check:'Po výměně měřit odchylku 1× týdně po dobu 2 měsíců.'},
+  {no:'ANL-2026-012', ttl:'Zmetkovitost v lakovně — nedostatečné krytí', line:'Lakovna', status:'uzavřená', owner:'J. Nováková',
+   opened:'2026-08-04', loss:126, cat:'Kvalita', actions:4, done:4,
+   detail:'Zvýšená zmetkovitost 3,1 % v týdnu 31, reklamace od zákazníka.',
+   immediate:'Doladění trysek, 100% kontrola šarže, blokace skladu.',
+   whys:['Díly měly nedostatečné krytí laku.','Nesprávný tlak na tryskách.','Regulátor tlaku kolísal.','Membrána regulátoru opotřebená.','Regulátor nebyl v plánu výměny.'],
+   root:'Regulátor tlaku nebyl v plánu preventivní výměny dílů.',
+   check:'4 týdny bez opakování — uzavřeno 2026-08-15.'}
+];
+
+const ACTIONS = [
+  {no:'AK-2026-041', task:'Doplnit kontrolu zdvihu vyhazovače do seřizovacího listu',   owner:'M. Kolář',    due:'2026-08-25', status:'v řešení',  prog:60, src:'ANL-2026-014', prio:'vysoká'},
+  {no:'AK-2026-042', task:'Objednat 5 ks náhradních pružin na sklad',                    owner:'D. Varhaník', due:'2026-08-22', status:'v řešení',  prog:80, src:'ANL-2026-014', prio:'běžná'},
+  {no:'AK-2026-043', task:'Proškolit seřizovače na nový postup přestavby',               owner:'P. Dvořák',   due:'2026-09-05', status:'nová',      prog:0,  src:'ANL-2026-014', prio:'běžná'},
+  {no:'AK-2026-038', task:'Zařadit mazání dopravníku do TPM plánu',                      owner:'J. Nováková', due:'2026-08-19', status:'hotová',    prog:100,src:'ANL-2026-015', prio:'vysoká'},
+  {no:'AK-2026-039', task:'Vyměnit trysku automatického mazání',                          owner:'Údržba',      due:'2026-08-18', status:'hotová',    prog:100,src:'ANL-2026-015', prio:'vysoká'},
+  {no:'AK-2026-044', task:'Změnit interval čištění filtrů rozvaděče na 1× měsíčně',      owner:'P. Dvořák',   due:'2026-08-18', status:'v řešení',  prog:30, src:'ANL-2026-016', prio:'kritická'},
+  {no:'AK-2026-045', task:'Objednat kuličkový šroub osy Z (CNC 03)',                      owner:'D. Varhaník', due:'2026-08-15', status:'v řešení',  prog:45, src:'ANL-2026-017', prio:'kritická'},
+  {no:'AK-2026-046', task:'Založit evidenci životnosti klíčových komponent',              owner:'M. Kolář',    due:'2026-09-30', status:'nová',      prog:0,  src:'ANL-2026-017', prio:'běžná'},
+  {no:'AK-2026-047', task:'Měsíční report prostojů pro vedení závodu',                    owner:'D. Varhaník', due:'2026-09-01', status:'nová',      prog:0,  src:'KPI',          prio:'nízká'},
+  {no:'AK-2026-036', task:'Výměna regulátoru tlaku v lakovně',                            owner:'Údržba',      due:'2026-08-11', status:'hotová',    prog:100,src:'ANL-2026-012', prio:'vysoká'},
+  {no:'AK-2026-040', task:'Revize skladových minim spotřebních dílů',                     owner:'D. Varhaník', due:'2026-08-14', status:'v řešení',  prog:20, src:'audit',        prio:'běžná'},
+  {no:'AK-2026-048', task:'Ověřit účinnost opatření na lisu 400 t (4 týdny)',            owner:'M. Kolář',    due:'2026-09-15', status:'nová',      prog:0,  src:'ANL-2026-014', prio:'vysoká'}
+];
+
+const TREND = [ /* prostoje v minutách po týdnech */
+  {w:'T29', min:2480, avail:84.1}, {w:'T30', min:2210, avail:85.6}, {w:'T31', min:2650, avail:83.2},
+  {w:'T32', min:1980, avail:86.9}, {w:'T33', min:2120, avail:86.1}, {w:'T34', min:1760, avail:88.4},
+  {w:'T35', min:1610, avail:89.2}, {w:'T36', min:1842, avail:87.4}
+];
+
+const TODAY = '2026-08-21';
+
+/* ---------- pomocné ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => n.toLocaleString('cs-CZ');
+const hhmm = m => Math.floor(m/60) + ' h ' + String(m%60).padStart(2,'0') + ' min';
+const reason = code => REASONS.find(r=>r.code===code) || {code, cat:'—', name:code};
+const isLate = a => a.status!=='hotová' && a.due < TODAY;
+
+const STATUS_BADGE = {
+  'otevřená':'b-red','v řešení':'b-amber','ověřování':'b-blue','uzavřená':'b-green',
+  'nová':'b-blue','hotová':'b-green','zrušená':'b-grey'
+};
+const PRIO_BADGE = {'kritická':'b-red','vysoká':'b-amber','běžná':'b-blue','nízká':'b-grey'};
+const ANL_CLS = {'otevřená':'s-open','v řešení':'s-work','ověřování':'s-check','uzavřená':'s-done'};
+
+/* tooltip pro grafy */
+const tipEl = $('#tip');
+function tipShow(e, html){ tipEl.innerHTML = html; tipEl.style.opacity = 1;
+  tipEl.style.left = Math.min(e.clientX+14, innerWidth-260)+'px'; tipEl.style.top = (e.clientY-10)+'px'; }
+function tipHide(){ tipEl.style.opacity = 0; }
+document.addEventListener('scroll', tipHide, true);
+
+/* ---------- grafy (vlastní SVG, žádné knihovny) ---------- */
+
+function paretoChart(){
+  const sums = {};
+  DOWNTIME.forEach(d => { const r = reason(d.code); sums[r.cat] = (sums[r.cat]||0) + d.min; });
+  const rows = Object.entries(sums).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  const total = rows.reduce((s,r)=>s+r.v,0);
+  let acc = 0; rows.forEach(r => { acc += r.v; r.cum = acc/total*100; });
+
+  const W=680, H=250, ml=46, mr=44, mt=14, mb=54;
+  const iw = W-ml-mr, ih = H-mt-mb;
+  const max = Math.max(...rows.map(r=>r.v));
+  const step = iw/rows.length, bw = Math.min(64, step-16);
+
+  let g = '';
+  for(let i=0;i<=4;i++){ const y = mt+ih - ih*i/4;
+    g += `<line class="gridline" x1="${ml}" y1="${y}" x2="${ml+iw}" y2="${y}"/>
+          <text class="ax" x="${ml-7}" y="${y+3}" text-anchor="end">${fmt(Math.round(max*i/4))}</text>
+          <text class="ax" x="${ml+iw+7}" y="${y+3}">${i*25} %</text>`; }
+
+  let bars = '', pts = [];
+  rows.forEach((r,i)=>{
+    const h = ih*r.v/max, x = ml + step*i + (step-bw)/2, y = mt+ih-h;
+    bars += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="4" fill="#0d7377"
+              data-t="<b>${esc(r.k)}</b>${fmt(r.v)} min · ${(r.v/total*100).toFixed(0)} % z celku" class="mk"/>`;
+    bars += `<text class="ax" x="${x+bw/2}" y="${y-6}" text-anchor="middle" font-weight="700" fill="#16233a">${fmt(r.v)}</text>`;
+    const label = r.k.length>13 ? r.k.slice(0,12)+'…' : r.k;
+    bars += `<text class="ax" x="${x+bw/2}" y="${mt+ih+16}" text-anchor="middle">${esc(label)}</text>`;
+    bars += `<text class="ax" x="${x+bw/2}" y="${mt+ih+30}" text-anchor="middle" opacity=".75">${(r.v/total*100).toFixed(0)} %</text>`;
+    pts.push([x+bw/2, mt+ih - ih*r.cum/100, r]);
+  });
+  const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const dots = pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="#fff" stroke="#1b4b8f" stroke-width="2"
+      data-t="<b>${esc(p[2].k)}</b>kumulativně ${p[2].cum.toFixed(0)} %" class="mk"/>`).join('');
+
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Paretova analýza prostojů podle kategorie">
+    ${g}${bars}
+    <path d="${line}" fill="none" stroke="#1b4b8f" stroke-width="2" stroke-dasharray="5 3"/>
+    ${dots}
+    <line x1="${ml}" y1="${mt+ih}" x2="${ml+iw}" y2="${mt+ih}" stroke="#c8d3e0"/>
+  </svg>
+  <div class="chartlegend"><span><i style="background:#0d7377"></i>minuty prostoje</span>
+  <span><i class="line"></i>kumulativní podíl</span></div>`;
+}
+
+function trendChart(){
+  const W=680, H=230, ml=46, mr=16, mt=14, mb=34;
+  const iw = W-ml-mr, ih = H-mt-mb;
+  const max = 3000, step = iw/(TREND.length-1);
+  let g='';
+  for(let i=0;i<=3;i++){ const y = mt+ih - ih*i/3;
+    g += `<line class="gridline" x1="${ml}" y1="${y}" x2="${ml+iw}" y2="${y}"/>
+          <text class="ax" x="${ml-7}" y="${y+3}" text-anchor="end">${fmt(Math.round(max*i/3))}</text>`; }
+  const pts = TREND.map((t,i)=>[ml+step*i, mt+ih-ih*t.min/max, t]);
+  const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area = line + ` L ${ml+iw} ${mt+ih} L ${ml} ${mt+ih} Z`;
+  const dots = pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="${i===pts.length-1?6:4.5}"
+      fill="${i===pts.length-1?'#0d7377':'#fff'}" stroke="#0d7377" stroke-width="2" class="mk"
+      data-t="<b>Týden ${esc(p[2].w)}</b>${fmt(p[2].min)} min prostoje · dostupnost ${String(p[2].avail).replace('.',',')} %"/>`).join('');
+  const lbl = TREND.map((t,i)=>`<text class="ax" x="${ml+step*i}" y="${mt+ih+18}" text-anchor="middle">${t.w}</text>`).join('');
+  const target = mt+ih-ih*1800/max;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Vývoj prostojů po týdnech">
+    ${g}
+    <path d="${area}" fill="#0d7377" opacity=".12"/>
+    <line x1="${ml}" y1="${target}" x2="${ml+iw}" y2="${target}" stroke="#b7791f" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text class="ax" x="${ml+iw}" y="${target-6}" text-anchor="end" fill="#b7791f" font-weight="700">cíl 1 800 min/týden</text>
+    <path d="${line}" fill="none" stroke="#0d7377" stroke-width="2"/>
+    ${dots}${lbl}
+    <line x1="${ml}" y1="${mt+ih}" x2="${ml+iw}" y2="${mt+ih}" stroke="#c8d3e0"/>
+  </svg>`;
+}
+
+function lineBars(){
+  const sums = {};
+  DOWNTIME.forEach(d => sums[d.line] = (sums[d.line]||0) + d.min);
+  const rows = Object.entries(sums).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  const max = Math.max(...rows.map(r=>r.v));
+  return rows.map(r=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dotted var(--line)">
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.k)}</div>
+      <div style="flex:1.4;height:14px;background:#eef1f5;border-radius:4px;overflow:hidden;border:1px solid var(--line)">
+        <div style="height:100%;width:${(r.v/max*100).toFixed(1)}%;background:#0d7377;border-radius:3px"></div>
+      </div>
+      <div class="num" style="width:64px;font-weight:700">${fmt(r.v)}<span class="muted" style="font-weight:400"> min</span></div>
+    </div>`).join('');
+}
+
+function sparkline(vals, color){
+  const W=150,H=30,max=Math.max(...vals),min=Math.min(...vals),step=W/(vals.length-1);
+  const pts = vals.map((v,i)=>[i*step, H-2 - (H-6)*(v-min)/(max-min||1)]);
+  const d = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+    <path d="${d} L ${W} ${H} L 0 ${H} Z" fill="${color}" opacity=".12"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2"/>
+    <circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3" fill="${color}"/>
+  </svg>`;
+}
+
+/* ---------- záložky ---------- */
+
+const TABS = [
+  {k:'dash', t:'Přehled / KPI'},
+  {k:'down', t:'Prostoje', cnt:()=>DOWNTIME.length},
+  {k:'anl',  t:'Analýzy problémů', cnt:()=>ANALYSES.filter(a=>a.status!=='uzavřená').length},
+  {k:'act',  t:'Akční plán', cnt:()=>ACTIONS.filter(a=>a.status!=='hotová').length},
+  {k:'imp',  t:'Import ze Symesticu'},
+  {k:'set',  t:'Nastavení'}
+];
+let tab = 'dash';
+
+function renderTabs(){
+  $('#tabbar').innerHTML = TABS.map(t=>
+    `<button class="tab ${t.k===tab?'active':''}" data-tab="${t.k}">${esc(t.t)}${t.cnt?`<span class="cnt">${t.cnt()}</span>`:''}</button>`
+  ).join('') + `<span class="spacer"><button class="btn-ghost" id="btnHelp">Nápověda</button></span>`;
+  $('#tabbar').querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render();window.scrollTo(0,0)});
+  $('#btnHelp').onclick = ()=>alert('Toto je grafický návrh (maketa). Data jsou ukázková a po obnovení stránky se vrátí do původního stavu.\n\nKlikni na řádek prostoje nebo na kartu analýzy — otevře se detail.');
+}
+
+const DEMO_NOTE = `<div class="notice demo"><b>Grafický návrh:</b>
+  <span>Tohle je klikací maketa, ať vidíš, jak by aplikace vypadala a fungovala. Data jsou vymyšlená a drží se jen v prohlížeči —
+  po obnovení stránky (F5) se vrátí do výchozího stavu. Ostrá verze poběží na Firebase Firestore, stejně jako Nákupní požadavky.</span></div>`;
+
+/* ---------- 1) PŘEHLED / KPI ---------- */
+
+function viewDash(){
+  const totalMin = DOWNTIME.reduce((s,d)=>s+d.min,0);
+  const openAnl  = ANALYSES.filter(a=>a.status!=='uzavřená').length;
+  const openAct  = ACTIONS.filter(a=>a.status!=='hotová');
+  const lateAct  = openAct.filter(isLate);
+  const doneOnTime = Math.round(ACTIONS.filter(a=>a.status==='hotová').length /
+                     (ACTIONS.filter(a=>a.status==='hotová').length + lateAct.length) * 100);
+  const mttr = Math.round(totalMin / DOWNTIME.length);
+
+  return DEMO_NOTE + `
+  <div class="cards">
+    <div class="kcard ${TREND[7].avail>=92?'ok':'warn'}">
+      <div class="lbl">Dostupnost strojů</div>
+      <div class="val">87,4<small> %</small></div>
+      <div class="note">cíl 92 % · <span class="down">+1,3 b. proti T35</span></div>
+      ${sparkline(TREND.map(t=>t.avail), '#1f9254')}
+    </div>
+    <div class="kcard bad">
+      <div class="lbl">Prostoje — posledních 5 dní</div>
+      <div class="val">${fmt(totalMin)}<small> min</small></div>
+      <div class="note">${hhmm(totalMin)} v ${DOWNTIME.length} událostech · křivka = týdenní trend</div>
+      ${sparkline(TREND.map(t=>t.min), '#c0392b')}
+    </div>
+    <div class="kcard info">
+      <div class="lbl">MTTR — průměrná oprava</div>
+      <div class="val">${mttr}<small> min</small></div>
+      <div class="note">MTBF 11,2 h · ${DOWNTIME.length} událostí</div>
+    </div>
+    <div class="kcard warn">
+      <div class="lbl">Otevřené analýzy</div>
+      <div class="val">${openAnl}</div>
+      <div class="note">${ANALYSES.filter(a=>a.status==='otevřená').length} čeká na řešitele · ${ANALYSES.filter(a=>a.status==='ověřování').length} v ověřování</div>
+    </div>
+    <div class="kcard ${lateAct.length?'bad':'ok'}">
+      <div class="lbl">Úkoly po termínu</div>
+      <div class="val">${lateAct.length}<small> z ${openAct.length}</small></div>
+      <div class="note">plnění v termínu ${doneOnTime} % · cíl 90 %</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Pareto — kde ztrácíme nejvíc času<span class="right">posledních 5 dní · zdroj Symestic</span></h2>
+      <div class="body">${paretoChart()}
+        <div class="notice" style="margin:12px 0 0">Dvě kategorie dělají <b>66 % všech prostojů</b>. Tady má smysl začít.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Prostoje podle stroje</h2>
+      <div class="body">${lineBars()}</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Vývoj prostojů po týdnech<span class="right">minuty za týden</span></h2>
+      <div class="body">${trendChart()}</div>
+    </div>
+    <div class="panel">
+      <h2>Úkoly po termínu — vyžadují reakci<span class="right">${lateAct.length} položek</span></h2>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Číslo</th><th>Úkol</th><th>Řešitel</th><th>Termín</th><th>Plnění</th></tr></thead>
+          <tbody>${lateAct.map(a=>`
+            <tr class="crit clickable" data-act="${a.no}">
+              <td><b>${a.no}</b></td>
+              <td class="desc">${esc(a.task)}</td>
+              <td>${esc(a.owner)}</td>
+              <td><b style="color:var(--red)">${a.due}</b></td>
+              <td><div class="barwrap"><div class="bar late"><i style="width:${a.prog}%"></i></div><span>${a.prog} %</span></div></td>
+            </tr>`).join('') || `<tr><td colspan="5" class="empty">Žádný úkol po termínu — paráda.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- 2) PROSTOJE ---------- */
+
+function viewDown(){
+  return DEMO_NOTE + `
+  <div class="newbar">
+    <button class="btn-new" id="btnNewDown">+ Zapsat prostoj ručně</button>
+    <button class="btn-new orange" data-goto="imp">Importovat ze Symesticu</button>
+  </div>
+  <div class="panel">
+    <h2>Prostoje<span class="right">${DOWNTIME.length} záznamů · ${fmt(DOWNTIME.reduce((s,d)=>s+d.min,0))} min celkem</span></h2>
+    <div class="filters">
+      <input class="grow" placeholder="Hledat v popisu, stroji, kódu…">
+      <select><option>Všechny stroje</option>${LINES.map(l=>`<option>${esc(l)}</option>`).join('')}</select>
+      <select><option>Všechny kategorie</option>${[...new Set(REASONS.map(r=>r.cat))].map(c=>`<option>${esc(c)}</option>`).join('')}</select>
+      <select><option>Všechny směny</option><option>Ranní</option><option>Odpolední</option><option>Noční</option></select>
+      <label class="check"><input type="checkbox"> jen bez analýzy</label>
+      <label class="check"><input type="checkbox"> jen nad 60 min</label>
+      <button class="btn-ghost">Export do Excelu</button>
+    </div>
+    <div class="legend"><span><i style="background:#f8d2ce"></i>nad 60 min — kandidát na analýzu</span>
+      <span><i style="background:#fff"></i>běžný prostoj</span>
+      <span>Klikni na řádek pro detail.</span></div>
+    <div class="tblwrap">
+      <table>
+        <thead><tr>
+          <th>Datum</th><th>Sm.</th><th>Stroj / linka</th><th>Od</th><th>Do</th><th>Trvání</th>
+          <th>Kategorie</th><th>Kód</th><th>Popis</th><th>Analýza</th><th>Zdroj</th>
+        </tr></thead>
+        <tbody>${DOWNTIME.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.min-a.min).map(d=>{
+          const r = reason(d.code);
+          return `<tr class="clickable ${d.min>60?'crit':''}" data-down="${d.id}">
+            <td>${d.date}</td><td>${d.shift}</td><td><b>${esc(d.line)}</b></td>
+            <td>${d.from}</td><td>${d.to}</td>
+            <td class="num"><b>${d.min}</b> min</td>
+            <td>${esc(r.cat)}</td>
+            <td><span class="badge b-grey">${r.code}</span></td>
+            <td class="desc">${esc(d.desc)}</td>
+            <td>${d.anl?`<span class="badge b-teal">${d.anl}</span>`:`<button class="btn-ghost" style="padding:2px 8px;font-size:11px">+ Založit</button>`}</td>
+            <td><span class="badge ${d.src==='Symestic'?'b-purple':'b-grey'}">${d.src}</span></td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+/* ---------- 3) ANALÝZY ---------- */
+
+function viewAnl(){
+  return DEMO_NOTE + `
+  <div class="newbar"><button class="btn-new" id="btnNewAnl">+ Nová analýza problému</button></div>
+  <div class="panel">
+    <h2>Analýzy problémů — 5× Proč<span class="right">${ANALYSES.length} celkem · ${ANALYSES.filter(a=>a.status!=='uzavřená').length} otevřených</span></h2>
+    <div class="filters">
+      <input class="grow" placeholder="Hledat v analýzách…">
+      <select><option>Všechny stavy</option><option>otevřená</option><option>v řešení</option><option>ověřování</option><option>uzavřená</option></select>
+      <select><option>Všechny stroje</option>${LINES.map(l=>`<option>${esc(l)}</option>`).join('')}</select>
+      <select><option>Všichni řešitelé</option><option>M. Kolář</option><option>J. Nováková</option><option>P. Dvořák</option></select>
+    </div>
+    <div class="body">
+      <div class="anlgrid">${ANALYSES.map(a=>`
+        <article class="anl ${ANL_CLS[a.status]}" data-anl="${a.no}" tabindex="0">
+          <div class="top">
+            <span class="no">${a.no}</span>
+            <span class="badge ${STATUS_BADGE[a.status]}">${a.status}</span>
+            <span class="badge b-grey" style="margin-left:auto">${esc(a.cat)}</span>
+          </div>
+          <div class="ttl">${esc(a.ttl)}</div>
+          <div class="meta"><span><b>${esc(a.line)}</b></span><span>řeší ${esc(a.owner)}</span><span>od ${a.opened}</span></div>
+          <div class="meta"><span style="color:var(--red);font-weight:700">ztráta ${a.loss} min</span></div>
+          <div class="foot">
+            <span>Opatření: <b>${a.done}/${a.actions}</b> hotovo</span>
+            <div class="bar" style="flex:1"><i style="width:${Math.round(a.done/a.actions*100)}%"></i></div>
+            <span>Otevřít →</span>
+          </div>
+        </article>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function modalAnl(no){
+  const a = ANALYSES.find(x=>x.no===no); if(!a) return;
+  const acts = ACTIONS.filter(x=>x.src===no);
+  const html = `
+  <div class="overlay" id="ovl">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Detail analýzy">
+      <h3>${a.no} — ${esc(a.ttl)}<button class="x" id="mx" aria-label="Zavřít">✕</button></h3>
+      <div class="form">
+        <div class="f"><label>Stav</label><div class="ro"><span class="badge ${STATUS_BADGE[a.status]}">${a.status}</span></div></div>
+        <div class="f"><label>Stroj / linka</label><div class="ro">${esc(a.line)}</div></div>
+        <div class="f"><label>Řešitel</label><div class="ro">${esc(a.owner)}</div></div>
+        <div class="f"><label>Otevřeno</label><div class="ro">${a.opened}</div></div>
+
+        <div class="f span3"><label>Popis problému</label><div class="ro">${esc(a.detail)}</div></div>
+        <div class="f"><label>Ztráta celkem</label><div class="ro" style="color:var(--red);font-weight:700">${a.loss} min</div></div>
+
+        <div class="f span4"><label>Okamžité opatření (co jsme udělali hned)</label><div class="ro">${esc(a.immediate)}</div></div>
+
+        <div class="sect">5× Proč — cesta ke kořenové příčině</div>
+        <div class="why">${a.whys.map((w,i)=>`
+          <div class="row"><div class="n ${i===a.whys.length-1?'root':''}">${i+1}. Proč</div><div class="t">${esc(w)}</div></div>`).join('')}
+        </div>
+        <div class="f span4"><label>Kořenová příčina</label>
+          <div class="ro" style="border-color:#f5cfca;background:#fdecea;font-weight:700">${esc(a.root)}</div></div>
+        <div class="f span4"><label>Ověření účinnosti</label><div class="ro">${esc(a.check)}</div></div>
+
+        <div class="sect">Navázaná opatření (akční plán)</div>
+        <div class="f span4">
+          <div class="tblwrap" style="border:1px solid var(--line);border-radius:var(--radius)">
+            <table><thead><tr><th>Číslo</th><th>Opatření</th><th>Řešitel</th><th>Termín</th><th>Stav</th><th>Plnění</th></tr></thead>
+            <tbody>${acts.map(x=>`<tr class="${isLate(x)?'crit':''}">
+              <td><b>${x.no}</b></td><td class="desc">${esc(x.task)}</td><td>${esc(x.owner)}</td>
+              <td>${x.due}</td><td><span class="badge ${STATUS_BADGE[x.status]}">${x.status}</span></td>
+              <td><div class="barwrap"><div class="bar ${isLate(x)?'late':''}"><i style="width:${x.prog}%"></i></div><span>${x.prog} %</span></div></td>
+            </tr>`).join('') || `<tr><td colspan="6" class="empty">Zatím žádné opatření</td></tr>`}
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+      <div class="hist">
+        <div>2026-08-20 09:14 · ${esc(a.owner)} — doplněna kořenová příčina</div>
+        <div>2026-08-19 14:02 · D. Varhaník — přiřazen řešitel</div>
+        <div>${a.opened} 07:30 · systém — analýza založena z prostoje ${a.no==='ANL-2026-014'?'#1':'#5'}</div>
+      </div>
+      <div class="foot">
+        <span class="muted">Historie změn se ukládá ke každé analýze.</span>
+        <span class="r">
+          <button class="btn-ghost">Tisk / PDF</button>
+          <button class="btn-primary">+ Přidat opatření</button>
+          <button class="btn-ok">Uložit</button>
+          <button class="btn-ghost" id="mc">Zavřít</button>
+        </span>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  const close = ()=>$('#ovl').remove();
+  $('#mx').onclick = close; $('#mc').onclick = close;
+  $('#ovl').onclick = e => { if(e.target.id==='ovl') close(); };
+}
+
+function modalDown(id){
+  const d = DOWNTIME.find(x=>x.id===id); if(!d) return;
+  const r = reason(d.code);
+  document.body.insertAdjacentHTML('beforeend', `
+  <div class="overlay" id="ovl"><div class="modal" style="max-width:760px" role="dialog" aria-modal="true" aria-label="Detail prostoje">
+    <h3>Prostoj ${d.date} · ${esc(d.line)}<button class="x" id="mx" aria-label="Zavřít">✕</button></h3>
+    <div class="form">
+      <div class="f"><label>Datum</label><div class="ro">${d.date}</div></div>
+      <div class="f"><label>Směna</label><div class="ro">${d.shift}</div></div>
+      <div class="f"><label>Od–do</label><div class="ro">${d.from} – ${d.to}</div></div>
+      <div class="f"><label>Trvání</label><div class="ro" style="font-weight:700">${d.min} min</div></div>
+      <div class="f span2"><label>Stroj / linka</label><div class="ro">${esc(d.line)}</div></div>
+      <div class="f"><label>Kategorie</label><div class="ro">${esc(r.cat)}</div></div>
+      <div class="f"><label>Kód důvodu</label><div class="ro">${r.code} — ${esc(r.name)}</div></div>
+      <div class="f span4"><label>Popis</label><div class="ro">${esc(d.desc)}</div></div>
+      <div class="f span2"><label>Zdroj záznamu</label><div class="ro">${d.src}${d.src==='Symestic'?' (import 21.8.2026 06:05)':''}</div></div>
+      <div class="f span2"><label>Analýza</label><div class="ro">${d.anl?d.anl:'—'}</div></div>
+    </div>
+    <div class="foot"><span class="muted">Data ze Symesticu se needitují, aby seděla s výrobním systémem.</span>
+      <span class="r">${d.anl?`<button class="btn-primary">Otevřít ${d.anl}</button>`:`<button class="btn-teal">+ Založit analýzu z tohoto prostoje</button>`}
+      <button class="btn-ghost" id="mc">Zavřít</button></span></div>
+  </div></div>`);
+  const close = ()=>$('#ovl').remove();
+  $('#mx').onclick = close; $('#mc').onclick = close;
+  $('#ovl').onclick = e => { if(e.target.id==='ovl') close(); };
+}
+
+/* ---------- 4) AKČNÍ PLÁN ---------- */
+
+function viewAct(){
+  const open = ACTIONS.filter(a=>a.status!=='hotová');
+  const late = open.filter(isLate);
+  const soon = open.filter(a=>!isLate(a) && a.due <= '2026-08-28');
+  const done = ACTIONS.filter(a=>a.status==='hotová').length;
+  const onTime = Math.round(done/(done+late.length)*100);
+  return DEMO_NOTE + `
+  <div class="cards">
+    <div class="kcard info"><div class="lbl">Otevřené úkoly</div><div class="val">${open.length}</div><div class="note">celkem ${ACTIONS.length} úkolů</div></div>
+    <div class="kcard bad"><div class="lbl">Po termínu</div><div class="val">${late.length}</div><div class="note">nutná reakce dnes</div></div>
+    <div class="kcard warn"><div class="lbl">Termín do 7 dnů</div><div class="val">${soon.length}</div><div class="note">hlídat</div></div>
+    <div class="kcard ok"><div class="lbl">Hotovo tento měsíc</div><div class="val">${done}</div><div class="note">plnění v termínu ${onTime} % · cíl 90 %</div></div>
+  </div>
+  <div class="newbar"><button class="btn-new" id="btnNewAct">+ Nový úkol</button></div>
+  <div class="panel">
+    <h2>Akční plán — sledování plnění<span class="right">řazeno podle termínu</span></h2>
+    <div class="filters">
+      <input class="grow" placeholder="Hledat v úkolech…">
+      <select><option>Všichni řešitelé</option><option>M. Kolář</option><option>J. Nováková</option><option>P. Dvořák</option><option>D. Varhaník</option><option>Údržba</option></select>
+      <select><option>Všechny stavy</option><option>nová</option><option>v řešení</option><option>hotová</option></select>
+      <select><option>Všechny priority</option><option>kritická</option><option>vysoká</option><option>běžná</option><option>nízká</option></select>
+      <label class="check"><input type="checkbox"> skrýt hotové</label>
+      <button class="btn-ghost">Export do Excelu</button>
+    </div>
+    <div class="legend"><span><i style="background:#f8d2ce"></i>po termínu</span><span><i style="background:#fff"></i>v termínu</span></div>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Číslo</th><th>Úkol</th><th>Zdroj</th><th>Řešitel</th><th>Termín</th><th>Priorita</th><th>Stav</th><th>Plnění</th><th>Akce</th></tr></thead>
+        <tbody>${ACTIONS.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(a=>`
+          <tr class="${isLate(a)?'crit':''}">
+            <td><b>${a.no}</b></td>
+            <td class="desc">${esc(a.task)}</td>
+            <td>${a.src.startsWith('ANL')?`<span class="badge b-teal">${a.src}</span>`:`<span class="badge b-grey">${esc(a.src)}</span>`}</td>
+            <td>${esc(a.owner)}</td>
+            <td>${isLate(a)?`<b style="color:var(--red)">${a.due}</b>`:a.due}</td>
+            <td><span class="badge ${PRIO_BADGE[a.prio]}">${a.prio}</span></td>
+            <td><span class="badge ${STATUS_BADGE[a.status]}">${a.status}</span></td>
+            <td><div class="barwrap"><div class="bar ${isLate(a)?'late':''}"><i style="width:${a.prog}%"></i></div><span>${a.prog} %</span></div></td>
+            <td>${a.status==='hotová'?'<span class="muted">—</span>':'<button class="btn-ghost" style="padding:3px 8px;font-size:11px">Aktualizovat</button>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+/* ---------- 5) IMPORT ZE SYMESTICU ---------- */
+
+let impStep = 1, impFile = null;
+
+const SYM_COLS = [
+  {sym:'Datum',            ex:'20.08.2026',      map:'date'},
+  {sym:'Schicht',          ex:'R',               map:'shift'},
+  {sym:'Anlage / Linie',   ex:'Lis 400 t',       map:'line'},
+  {sym:'Beginn',           ex:'06:42',           map:'from'},
+  {sym:'Ende',             ex:'08:05',           map:'to'},
+  {sym:'Dauer (min)',      ex:'83',              map:'min'},
+  {sym:'Grundcode',        ex:'M01',             map:'code'},
+  {sym:'Bemerkung',        ex:'Prasklá pružina…',map:'desc'},
+  {sym:'Menge Ausschuss',  ex:'12',              map:'ignore'}
+];
+const APP_FIELDS = [
+  {k:'ignore', t:'— neimportovat —'},{k:'date',t:'Datum'},{k:'shift',t:'Směna'},{k:'line',t:'Stroj / linka'},
+  {k:'from',t:'Začátek'},{k:'to',t:'Konec'},{k:'min',t:'Trvání (min)'},{k:'code',t:'Kód důvodu'},{k:'desc',t:'Popis'}
+];
+
+function viewImp(){
+  const stepsHtml = `<ul class="steps">
+    ${[['1','Nahrát soubor'],['2','Přiřadit sloupce'],['3','Kontrola'],['4','Hotovo']].map(([n,t],i)=>{
+      const idx=i+1; return `<li class="${idx===impStep?'on':''} ${idx<impStep?'done':''}"><b>${idx<impStep?'✓':n}</b>${t}</li>`;}).join('')}
+  </ul>`;
+
+  let body = '';
+  if(impStep===1){
+    body = `<div class="body">
+      <div class="drop" id="drop">
+        <div class="big">Přetáhni sem report ze Symesticu</div>
+        <div>nebo <button class="btn-teal" id="pick">Vybrat soubor</button></div>
+        <div class="hint">Podporované formáty: <b>.xlsx</b>, <b>.xls</b>, <b>.csv</b> · maximálně 10 MB<br>
+        Soubor se zpracuje přímo v prohlížeči, nikam se neposílá.</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none">
+      </div>
+      <div class="notice" style="margin-top:12px">
+        <b>Jak na to:</b> v Symesticu vyjeď report prostojů za období → Export do Excelu → soubor přetáhni sem.
+        Sloupce si přiřadíš v dalším kroku a nastavení se zapamatuje, takže příště už jen přetáhneš soubor a dáš Importovat.
+      </div>
+      <div class="notice warn" style="margin-top:10px">
+        Duplicity se poznají podle kombinace <b>datum + stroj + začátek</b>. Řádky, které už v aplikaci jsou, se přeskočí — můžeš tedy klidně importovat překrývající se období.
+      </div>
+    </div>`;
+  }
+  if(impStep===2){
+    body = `<div class="body">
+      <div class="file"><span class="nm">${esc(impFile||'Symestic_prostoje_KW34.xlsx')}</span>
+        <span class="sz">142 řádků · 9 sloupců · list „Stillstände"</span>
+        <button class="btn-ghost" style="margin-left:auto" data-imp="1">Vybrat jiný soubor</button></div>
+      <div class="tblwrap">
+        <table class="maptbl">
+          <thead><tr><th>Sloupec v Symesticu</th><th>Ukázka hodnoty</th><th>Pole v naší aplikaci</th><th>Stav</th></tr></thead>
+          <tbody>${SYM_COLS.map(c=>`<tr>
+            <td><b>${esc(c.sym)}</b></td>
+            <td class="muted">${esc(c.ex)}</td>
+            <td><select>${APP_FIELDS.map(f=>`<option value="${f.k}" ${f.k===c.map?'selected':''}>${esc(f.t)}</option>`).join('')}</select></td>
+            <td>${c.map==='ignore'?'<span class="badge b-grey">přeskočeno</span>':'<span class="badge b-green">rozpoznáno</span>'}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div class="notice" style="margin-top:12px">Přiřazení se uloží jako šablona „Symestic — prostoje". Příště se předvyplní samo.</div>
+    </div>
+    <div class="foot" style="padding:12px 13px;border-top:1px solid var(--line);display:flex;gap:8px;background:#fafbfd">
+      <button class="btn-ghost" data-imp="1">Zpět</button>
+      <span style="margin-left:auto"></span>
+      <button class="btn-teal" data-imp="3">Pokračovat na kontrolu →</button>
+    </div>`;
+  }
+  if(impStep===3){
+    body = `<div class="body">
+      <div class="cards" style="margin-bottom:12px">
+        <div class="kcard ok"><div class="lbl">Připraveno k importu</div><div class="val">128</div><div class="note">nových prostojů</div></div>
+        <div class="kcard info"><div class="lbl">Duplicity</div><div class="val">11</div><div class="note">už v aplikaci jsou — přeskočí se</div></div>
+        <div class="kcard warn"><div class="lbl">K doplnění</div><div class="val">3</div><div class="note">neznámý kód důvodu</div></div>
+        <div class="kcard bad"><div class="lbl">Chyby</div><div class="val">0</div><div class="note">nic neblokuje import</div></div>
+      </div>
+      <div class="notice warn"><b>3 řádky mají kód, který neznáme</b> (X09). Vyber, co s nimi: založit nový kód důvodu, přiřadit ke stávajícímu, nebo řádky přeskočit.</div>
+      <div class="tblwrap" style="border:1px solid var(--line);border-radius:var(--radius);margin-top:10px">
+        <table>
+          <thead><tr><th>Ř.</th><th>Datum</th><th>Stroj</th><th>Od</th><th>Trvání</th><th>Kód</th><th>Popis</th><th>Výsledek</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>2026-08-14</td><td>Lis 400 t</td><td>06:12</td><td class="num">45 min</td><td><span class="badge b-grey">M01</span></td><td class="desc">Výměna nástroje po havárii</td><td><span class="badge b-green">nový</span></td></tr>
+            <tr><td>2</td><td>2026-08-14</td><td>CNC 03</td><td>09:40</td><td class="num">18 min</td><td><span class="badge b-grey">P01</span></td><td class="desc">Přestavba na díl 4419-C</td><td><span class="badge b-green">nový</span></td></tr>
+            <tr style="background:#eef1f5"><td>3</td><td>2026-08-14</td><td>Svařovna R2</td><td>13:05</td><td class="num">62 min</td><td><span class="badge b-grey">M02</span></td><td class="desc">Chyba zdroje</td><td><span class="badge b-grey">duplicita — přeskočí se</span></td></tr>
+            <tr class="crit"><td>4</td><td>2026-08-15</td><td>Lakovna</td><td>21:15</td><td class="num">27 min</td><td><span class="badge b-red">X09</span></td><td class="desc">Neznámý důvod ze Symesticu</td><td><span class="badge b-amber">neznámý kód</span></td></tr>
+            <tr><td>5</td><td>2026-08-15</td><td>Montážní linka A</td><td>07:02</td><td class="num">33 min</td><td><span class="badge b-grey">L01</span></td><td class="desc">Chybí kabelové svazky</td><td><span class="badge b-green">nový</span></td></tr>
+            <tr><td colspan="8" class="muted" style="text-align:center;padding:10px">… a dalších 137 řádků</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="foot" style="padding:12px 13px;border-top:1px solid var(--line);display:flex;gap:8px;background:#fafbfd;flex-wrap:wrap">
+      <button class="btn-ghost" data-imp="2">Zpět na sloupce</button>
+      <label class="check" style="margin-left:10px"><input type="checkbox" checked> přeskočit duplicity</label>
+      <label class="check"><input type="checkbox"> přeskočit řádky s neznámým kódem</label>
+      <span style="margin-left:auto"></span>
+      <button class="btn-ok" data-imp="4">Importovat 128 prostojů</button>
+    </div>`;
+  }
+  if(impStep===4){
+    body = `<div class="body" style="text-align:center;padding:34px 18px">
+      <div style="font-size:44px;line-height:1">✓</div>
+      <div style="font-size:19px;font-weight:800;margin:8px 0 6px">Import hotový</div>
+      <div class="muted">Naimportováno <b>128 prostojů</b> · přeskočeno 11 duplicit · 3 řádky čekají na doplnění kódu.</div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn-teal" data-goto="down">Zobrazit prostoje</button>
+        <button class="btn-ghost" data-goto="dash">Zpět na přehled</button>
+        <button class="btn-ghost" data-imp="1">Importovat další soubor</button>
+      </div>
+      <div class="notice" style="margin-top:18px;text-align:left">Každý import se zapíše do historie — kdo, kdy, jaký soubor, kolik řádků. Když se něco naimportuje špatně, jde celá dávka vrátit zpět.</div>
+    </div>`;
+  }
+
+  return DEMO_NOTE + stepsHtml + `
+  <div class="panel">
+    <h2>Import ze Symesticu<span class="right">krok ${impStep} ze 4</span></h2>
+    ${body}
+  </div>
+  <div class="panel">
+    <h2>Historie importů</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Kdy</th><th>Kdo</th><th>Soubor</th><th>Řádků</th><th>Nových</th><th>Duplicit</th><th>Stav</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>21.08.2026 06:05</td><td>D. Varhaník</td><td>Symestic_prostoje_KW34.xlsx</td><td class="num">142</td><td class="num">128</td><td class="num">11</td><td><span class="badge b-green">OK</span></td><td><button class="btn-ghost" style="padding:3px 8px;font-size:11px">Vrátit dávku</button></td></tr>
+        <tr><td>14.08.2026 06:11</td><td>D. Varhaník</td><td>Symestic_prostoje_KW33.xlsx</td><td class="num">156</td><td class="num">156</td><td class="num">0</td><td><span class="badge b-green">OK</span></td><td><button class="btn-ghost" style="padding:3px 8px;font-size:11px">Vrátit dávku</button></td></tr>
+        <tr><td>07.08.2026 06:08</td><td>J. Nováková</td><td>Symestic_prostoje_KW32.xlsx</td><td class="num">149</td><td class="num">147</td><td class="num">2</td><td><span class="badge b-green">OK</span></td><td><button class="btn-ghost" style="padding:3px 8px;font-size:11px">Vrátit dávku</button></td></tr>
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+/* ---------- 6) NASTAVENÍ ---------- */
+
+function viewSet(){
+  return DEMO_NOTE + `
+  <div class="grid3">
+    <div class="panel">
+      <h2>Uživatelé a role<span class="right"><button class="btn-ghost">+ Přidat</button></span></h2>
+      <div class="tblwrap"><table>
+        <thead><tr><th>Jméno</th><th>Role</th><th>Úsek</th></tr></thead>
+        <tbody>
+          <tr><td>D. Varhaník</td><td><span class="badge b-purple">manažer</span></td><td>Engineering</td></tr>
+          <tr><td>M. Kolář</td><td><span class="badge b-teal">technik</span></td><td>Engineering</td></tr>
+          <tr><td>J. Nováková</td><td><span class="badge b-teal">technik</span></td><td>Kvalita</td></tr>
+          <tr><td>P. Dvořák</td><td><span class="badge b-blue">údržbář</span></td><td>Údržba</td></tr>
+          <tr><td>Mistr směny R</td><td><span class="badge b-grey">čtenář</span></td><td>Výroba</td></tr>
+        </tbody>
+      </table></div>
+      <div class="body"><div class="notice"><b>Role:</b> čtenář (jen kouká) → údržbář (plní úkoly) → technik (dělá analýzy) → manažer (vše + import + nastavení).</div></div>
+    </div>
+    <div class="panel">
+      <h2>Stroje a linky<span class="right"><button class="btn-ghost">+ Přidat</button></span></h2>
+      <div class="tblwrap"><table>
+        <thead><tr><th>Název</th><th>Úsek</th><th>Název v Symesticu</th></tr></thead>
+        <tbody>${LINES.map(l=>`<tr><td><b>${esc(l)}</b></td><td>Výroba</td><td class="muted">${esc(l)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="body"><div class="notice">Když se stroj v Symesticu jmenuje jinak, zapíšeš to sem a import si ho spáruje sám.</div></div>
+    </div>
+    <div class="panel">
+      <h2>Kódy důvodů prostoje<span class="right"><button class="btn-ghost">+ Přidat</button></span></h2>
+      <div class="tblwrap"><table>
+        <thead><tr><th>Kód</th><th>Kategorie</th><th>Název</th></tr></thead>
+        <tbody>${REASONS.map(r=>`<tr><td><span class="badge b-grey">${r.code}</span></td><td>${esc(r.cat)}</td><td>${esc(r.name)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="body"><div class="notice">Kategorie se používají v Paretu na přehledu. Míň kategorií = čitelnější graf.</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Cíle a limity (KPI)</h2>
+    <div class="form" style="grid-template-columns:repeat(4,1fr)">
+      <div class="f"><label>Cílová dostupnost strojů</label><input value="92 %"></div>
+      <div class="f"><label>Limit prostojů na týden</label><input value="1 800 min"></div>
+      <div class="f"><label>Prostoj vyžadující analýzu od</label><input value="60 min"></div>
+      <div class="f"><label>Cíl plnění úkolů v termínu</label><input value="90 %"></div>
+      <div class="f span2"><label>Připomínka řešitelům před termínem</label><input value="3 dny předem e-mailem"></div>
+      <div class="f span2"><label>Automatický import</label><input value="ručně — přetažením souboru"></div>
+    </div>
+    <div class="foot" style="padding:12px 15px;border-top:1px solid var(--line);background:#fafbfd;display:flex">
+      <span class="muted">Změny se propíšou do barev a upozornění na přehledu.</span>
+      <span style="margin-left:auto"><button class="btn-ok">Uložit nastavení</button></span>
+    </div>
+  </div>`;
+}
+
+/* ---------- render ---------- */
+
+function render(){
+  renderTabs();
+  const m = $('#main');
+  m.innerHTML = tab==='dash'?viewDash(): tab==='down'?viewDown(): tab==='anl'?viewAnl():
+                tab==='act'?viewAct(): tab==='imp'?viewImp(): viewSet();
+
+  m.querySelectorAll('[data-anl]').forEach(el=>{
+    el.onclick = ()=>modalAnl(el.dataset.anl);
+    el.onkeydown = e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); modalAnl(el.dataset.anl); } };
+  });
+  m.querySelectorAll('[data-down]').forEach(el=>el.onclick=()=>modalDown(+el.dataset.down));
+  m.querySelectorAll('[data-act]').forEach(el=>el.onclick=()=>{tab='act';render();window.scrollTo(0,0)});
+  m.querySelectorAll('[data-goto]').forEach(el=>el.onclick=()=>{tab=el.dataset.goto;render();window.scrollTo(0,0)});
+  m.querySelectorAll('[data-imp]').forEach(el=>el.onclick=()=>{impStep=+el.dataset.imp;render();window.scrollTo(0,0)});
+
+  const nd = $('#btnNewDown'); if(nd) nd.onclick = ()=>alert('Tady se otevře formulář pro ruční zápis prostoje (pro případy, které Symestic nezachytí).');
+  const na = $('#btnNewAnl');  if(na) na.onclick = ()=>alert('Tady se otevře prázdná analýza: popis problému, okamžité opatření, 5× Proč, kořenová příčina, opatření.');
+  const nk = $('#btnNewAct');  if(nk) nk.onclick = ()=>alert('Tady se otevře formulář nového úkolu: co, kdo, do kdy, priorita, vazba na analýzu.');
+
+  const drop = $('#drop');
+  if(drop){
+    const fi = $('#fileInput');
+    $('#pick').onclick = ()=>fi.click();
+    fi.onchange = ()=>{ if(fi.files[0]){ impFile = fi.files[0].name; impStep=2; render(); } };
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault();drop.classList.add('hot')}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault();drop.classList.remove('hot')}));
+    drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f){ impFile=f.name; impStep=2; render(); } });
+  }
+
+  m.querySelectorAll('.mk').forEach(el=>{
+    el.style.cursor='pointer';
+    el.addEventListener('mousemove', e=>tipShow(e, el.dataset.t));
+    el.addEventListener('mouseleave', tipHide);
+  });
+}
+
+render();
+</script>
+</body>
+</html>
