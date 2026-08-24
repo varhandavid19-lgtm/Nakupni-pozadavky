@@ -1,0 +1,110 @@
+rules_version = '2';
+
+// ==========================================================
+//  BEZPEČNOSTNÍ PRAVIDLA — Nákupní požadavky + modul Engineering
+//
+//  Tohle je CELÝ soubor pravidel. Ve Firebase konzoli
+//  (Firestore Database → Rules) označ všechno, co tam je,
+//  smaž to, vlož místo toho tenhle text a dej Publish.
+//
+//  Kdo co smí:
+//    zadavatel    — čte požadavky, zakládá nové
+//    skladník     — navíc upravuje požadavky
+//    schvalovatel — navíc schvaluje a zamítá
+//    admin        — všechno, mazání, uživatelé, nastavení a import prostojů
+//
+//  Nikdo nepřihlášený se do databáze nedostane.
+// ==========================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- pomocné funkce ----------
+
+    function prihlaseny() {
+      return request.auth != null;
+    }
+
+    // Role přihlášeného člověka podle jeho dokumentu v kolekci users.
+    // Když profil ještě neexistuje (úplně první přihlášení), vrátí prázdno.
+    function role() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : '';
+    }
+
+    function jeAdmin()        { return prihlaseny() && role() == 'admin'; }
+    function smiEditovat()    { return prihlaseny() && (role() == 'skladnik' || role() == 'admin'); }
+    function smiSchvalovat()  { return prihlaseny() && (role() == 'schvalovatel' || role() == 'admin'); }
+
+    // Účty, které jsou vždy administrátor (stejný seznam jako v index.html).
+    function jeVzdyAdmin() {
+      return prihlaseny()
+        && request.auth.token.email != null
+        && request.auth.token.email in ['varhan@minimo.yfai', 'norkova@minimo.yfai'];
+    }
+
+
+    // ---------- NÁKUPNÍ POŽADAVKY ----------
+    // Číst a zakládat může každý přihlášený. Upravovat sklad a schvalovatel,
+    // mazat jen administrátor.
+    match /requests/{id} {
+      allow read:   if prihlaseny();
+      allow create: if prihlaseny();
+      allow update: if smiEditovat() || smiSchvalovat();
+      allow delete: if jeAdmin();
+    }
+
+
+    // ---------- UŽIVATELÉ A ROLE ----------
+    // Seznam vidí každý přihlášený (aplikace ho potřebuje hned při prvním
+    // přihlášení). Role a jména mění jen administrátor v Administraci.
+    match /users/{uid} {
+      allow read: if prihlaseny();
+
+      // Vlastní profil si člověk založí sám při prvním přihlášení.
+      allow create: if prihlaseny() && (request.auth.uid == uid || jeAdmin());
+
+      // Roli mění administrátor. Sám sobě ji smí přepsat jen účet ze seznamu
+      // "vždy admin" — to je pojistka proti zamčení z administrace.
+      allow update: if prihlaseny() && (
+             jeAdmin()
+          || (request.auth.uid == uid && jeVzdyAdmin())
+          || (request.auth.uid == uid && request.resource.data.role == resource.data.role)
+        );
+
+      allow delete: if jeAdmin();
+    }
+
+
+    // ---------- NASTAVENÍ (účty, úseky, stroje, povinná pole, čítač čísel) ----------
+    // Zapisovat musí každý přihlášený: v dokumentu meta/config je čítač "seq",
+    // ze kterého se bere pořadové číslo NP-2026-XXX. Kdyby se zápis zakázal,
+    // nikdo kromě admina by nezaložil požadavek.
+    match /meta/{doc} {
+      allow read:  if prihlaseny();
+      allow write: if prihlaseny();
+    }
+
+
+    // ---------- MODUL ENGINEERING — prostoje ze Symesticu ----------
+    // Prostoje a souhrny čte každý přihlášený, zapisuje je jen administrátor
+    // při importu.
+    match /downtimes/{id} {
+      allow read:  if prihlaseny();
+      allow write: if jeAdmin();
+    }
+
+    match /dt_days/{datum} {
+      allow read:  if prihlaseny();
+      allow write: if jeAdmin();
+    }
+
+    // Záznam v historii importů jde jen založit — nikdo ho nesmaže ani nepřepíše.
+    match /dt_imports/{id} {
+      allow read:   if prihlaseny();
+      allow create: if jeAdmin();
+      allow update, delete: if false;
+    }
+  }
+}
