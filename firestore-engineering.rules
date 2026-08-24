@@ -1,0 +1,47 @@
+// ==========================================================
+//  PRAVIDLA PRO MODUL ENGINEERING (prostoje ze Symesticu)
+// ==========================================================
+//
+//  POZOR: tohle NENÍ celý soubor pravidel — je to jen kousek, který se má
+//  PŘIDAT do tvých stávajících pravidel ve Firebase konzoli.
+//
+//  Postup (dělá se ručně, do konzole nevidím):
+//    1) Firebase konzole → Firestore Database → záložka Rules
+//    2) najdi řádek "match /databases/{database}/documents {"
+//    3) hned pod něj vlož obě funkce (engSignedIn, engIsAdmin) a všechny tři bloky
+//       "match /downtimes", "match /dt_days" a "match /dt_imports" z tohoto souboru
+//    4) Publish
+//
+//  Dokud se pravidla nepublikují, modul Engineering hlásí, že do prostojů nevidí.
+//  Nic jiného se nerozbije — na nákupní požadavky tahle pravidla nesahají.
+// ==========================================================
+
+    // --- pomocné funkce (schválně mají v názvu „eng", aby se nepotkaly s tím, co už máš) ---
+    function engSignedIn() {
+      return request.auth != null;
+    }
+    function engIsAdmin() {
+      return engSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // --- jednotlivé prostoje (jeden dokument = jeden prostoj ze Symesticu) ---
+    // Čte každý přihlášený, zapisuje jen administrátor při importu.
+    match /downtimes/{id} {
+      allow read:  if engSignedIn();
+      allow write: if engIsAdmin();
+    }
+
+    // --- denní souhrny, ze kterých se kreslí přehled a KPI ---
+    match /dt_days/{date} {
+      allow read:  if engSignedIn();
+      allow write: if engIsAdmin();
+    }
+
+    // --- historie importů (kdo, kdy, jaký soubor) ---
+    // Záznam o importu jde jen založit, ne měnit ani mazat — je to stopa v historii.
+    match /dt_imports/{id} {
+      allow read:   if engSignedIn();
+      allow create: if engIsAdmin();
+      allow update, delete: if false;
+    }

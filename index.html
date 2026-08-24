@@ -11,6 +11,7 @@
     --green:#1f9254; --green-bg:#e8f6ee; --red:#c0392b; --red-bg:#fdecea;
     --amber:#b7791f; --amber-bg:#fdf3e2; --blue:#2563a8; --blue-bg:#e9f1fb;
     --purple:#6b46c1; --purple-bg:#f0ebfa; --grey:#6b7a90; --grey-bg:#eef1f5;
+    --teal:#0d7377; --teal-bg:#e4f2f2; --teal-dark:#0a5b5e;
     --radius:6px; font-synthesis-weight:none;
   }
   *{box-sizing:border-box}
@@ -39,6 +40,7 @@
   .tab{background:#eef1f5;color:#41506b;border:1px solid var(--line);font-weight:600}
   .tab.active{background:var(--navy-2);color:#fff;border-color:var(--navy-2)}
   .tab.violet.active{background:#6b46c1;border-color:#6b46c1}
+  .tab.teal.active{background:var(--teal);border-color:var(--teal)}
   .spacer{margin-left:auto;display:flex;gap:8px}
   .btn-primary{background:var(--navy-2);color:#fff}
   .btn-ghost{background:#fff;border:1px solid var(--line);color:#41506b}
@@ -183,6 +185,50 @@
   .rolebox p{margin:3px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
   @media(max-width:900px){.form{grid-template-columns:repeat(2,1fr)}.f.span4{grid-column:span 2}.admgrid{grid-template-columns:1fr}}
 
+
+  /* ===== MODUL ENGINEERING (prostoje, KPI, import) ===== */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:14px}
+  .tile{display:flex;align-items:center;gap:12px;text-align:left;background:#fff;border:1px solid var(--line);
+    border-left:5px solid var(--teal);border-radius:var(--radius);padding:12px 14px;width:100%;font-size:13px;color:var(--text)}
+  .tile:hover{box-shadow:0 4px 14px rgba(16,35,58,.12);border-color:#bfdedd}
+  .tile .ic{flex:none;width:38px;height:38px;border-radius:8px;background:var(--teal-bg);color:var(--teal-dark);
+    display:flex;align-items:center;justify-content:center;font-size:19px}
+  .tile .tt{font-weight:800;font-size:14px}
+  .tile .ts{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .tile .go{margin-left:auto;color:var(--teal-dark);font-weight:800}
+
+  .engbar-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .engbar-top .tab.active{background:var(--teal);border-color:var(--teal)}
+  .rangebtn{background:#fff;border:1px solid var(--line);color:#41506b;font-size:11.5px;padding:5px 10px}
+  .rangebtn.on{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:700}
+  .enggrid{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;align-items:start}
+  @media(max-width:1000px){.enggrid{grid-template-columns:1fr}}
+
+  .engbars{display:flex;flex-direction:column}
+  .engbar{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dotted var(--line)}
+  .engbar:last-child{border-bottom:0}
+  .engbar .nm{flex:1.1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+  .engbar .tr{flex:1.5;height:14px;background:#eef1f5;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .engbar .tr i{display:block;height:100%;border-radius:3px}
+  .engbar .vl{flex:none;width:118px;text-align:right;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+  .engchart{width:100%;height:auto;display:block}
+  .kcard.soon{border-left-color:#c8d3e0;background:repeating-linear-gradient(135deg,#fff,#fff 8px,#fafbfd 8px,#fafbfd 16px)}
+  .kcard.soon .val{color:var(--muted)}
+
+  .engdrop{border:2px dashed #b9c8da;border-radius:10px;background:#fbfcfe;padding:30px 18px;text-align:center;color:var(--muted)}
+  .engdrop.hot{border-color:var(--teal);background:var(--teal-bg)}
+  .engdrop .big{font-size:16px;font-weight:700;color:var(--text)}
+  .engfoot{padding:12px 13px;border-top:1px solid var(--line);background:#fafbfd;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .file{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;margin-bottom:12px;flex-wrap:wrap}
+  .file .nm{font-weight:700}
+  .file .sz{color:var(--muted);font-size:11.5px}
+  @media(max-width:680px){
+    .engbar{flex-wrap:wrap}
+    .engbar .nm{flex:1 0 100%}
+    .engbar .vl{width:auto}
+    .engbar-top .spacer{margin-left:0;width:100%;flex-wrap:wrap}
+  }
+
   /* ===== MOBIL: tabulka -> karty, formulář a filtry do jednoho sloupce ===== */
   @media(max-width:680px){
     header{padding:10px 12px;gap:10px}
@@ -243,7 +289,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword }
   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp, runTransaction }
+  onSnapshot, query, where, orderBy, limit, writeBatch, serverTimestamp, runTransaction }
   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 /* ====== FIREBASE KONFIGURACE (David / projekt nakupni-pozadavky) ====== */
@@ -364,6 +410,626 @@ const needsPoptat = r => (Number(r.cena)||0)===0 && r.status==='nový' && !r.app
 const toAskGlobal = () => rows.filter(needsPoptat).length;
 
 /* ==========================================================
+   MODUL ENGINEERING — prostoje, KPI a import ze Symesticu
+   Kolekce ve Firestore:
+     downtimes  — jednotlivé prostoje (id = datum_linka_čas → import nikdy nezduplikuje)
+     dt_days    — denní souhrn (kvůli rychlosti; přehled čte jen tyhle malé dokumenty)
+     dt_imports — historie importů (kdo, kdy, jaký soubor)
+   ========================================================== */
+
+/* ---------- rozdělení důvodů do skupin (podle textu ze Symesticu) ---------- */
+const ENG_GROUPS = [
+  {g:'Porucha stroje',       m:['porucha stroje','machine malfunction','porucha klipova','nefunkční tiskárna','breakdown']},
+  {g:'Přestavba a seřízení', m:['tool changeover','seřizování','machine adjustment','výměna nástroje','výměna formy','změna materiálu','uvolnění prvního']},
+  {g:'Technický prostoj',    m:['technický prostoj','technical downtime']},
+  {g:'Materiál a logistika', m:['material missing','disturbed material flow','packaging material','čekání na agv','material flow']},
+  {g:'Kvalita',              m:['špatná kvalita','quality','zmetk']},
+  {g:'Organizace výroby',    m:['production preparation','chybí plán','omezená výroba','výroba na druhé lince','plánované zkoušky']},
+  {g:'Lidé a přestávky',     m:['chybí personál','missing personal','operator training','break','end of shift','ohc']},
+  {g:'Systém a data',        m:['výpadek symestic','kusy nepočítala']}
+];
+const ENG_GROUP_CLS = {
+  'Porucha stroje':'#c0392b','Přestavba a seřízení':'#b7791f','Technický prostoj':'#8a5a2b',
+  'Materiál a logistika':'#2563a8','Kvalita':'#6b46c1','Organizace výroby':'#0d7377',
+  'Lidé a přestávky':'#1f9254','Systém a data':'#6b7a90','Nezařazeno':'#98a5b6'
+};
+const ENG_UNKNOWN = 'Nezařazeno';
+
+function engGroup(reason){
+  const t = String(reason||'').toLowerCase();
+  for(const r of ENG_GROUPS) if(r.m.some(x=>t.includes(x))) return r.g;
+  return ENG_UNKNOWN;
+}
+function engIsChangeover(reason){
+  const t = String(reason||'').toLowerCase();
+  return t.includes('tool changeover') || t.includes('výměna nástroje') || t.includes('výměna formy');
+}
+const engSlug = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,80) || 'x';
+const pad2 = n => String(n).padStart(2,'0');
+
+/* ---------- čtení času a trvání z Excelu ---------- */
+/* Excel ukládá čas jako číslo (dny od r. 1900). Přepočítáváme v UTC, aby se čas
+   neposouval podle časové zóny počítače. */
+function engFromSerial(v){
+  const ms = Math.round((Number(v) - 25569) * 86400) * 1000;
+  if(!isFinite(ms)) return null;
+  const d = new Date(ms);
+  return {iso:`${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`,
+          date:`${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}`, hour:d.getUTCHours(), ms};
+}
+function engMk(y,mo,d,H,M,S){
+  return {iso:`${y}-${pad2(mo)}-${pad2(d)}T${pad2(H)}:${pad2(M)}:${pad2(S)}`,
+          date:`${y}-${pad2(mo)}-${pad2(d)}`, hour:H, ms:Date.UTC(y,mo-1,d,H,M,S)};
+}
+/* Datum jako text (když se report uloží jako CSV) */
+function engFromText(s){
+  const t=String(s).trim();
+  let m=t.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if(m) return engMk(+m[1],+m[2],+m[3],+m[4],+m[5],+(m[6]||0));
+  m=t.match(/^(\d{1,2})\.\s?(\d{1,2})\.\s?(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if(m) return engMk(+m[3],+m[2],+m[1],+m[4],+m[5],+(m[6]||0));
+  m=t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})[, ]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+  if(m){ let y=+m[3]; if(y<100)y+=2000; let H=+m[4]; const ap=(m[7]||'').toUpperCase();
+    if(ap==='PM'&&H<12)H+=12; if(ap==='AM'&&H===12)H=0; return engMk(y,+m[1],+m[2],H,+m[5],+(m[6]||0)); }
+  return null;
+}
+function engTime(v){
+  if(v==null||v==='') return null;
+  if(typeof v==='number') return engFromSerial(v);
+  if(v instanceof Date) return engMk(v.getFullYear(),v.getMonth()+1,v.getDate(),v.getHours(),v.getMinutes(),v.getSeconds());
+  return engFromText(v);
+}
+function engDur(v){
+  if(v==null||v==='') return null;
+  if(typeof v==='number') return Math.round(v*86400);
+  const t=String(v).trim();
+  const m=t.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
+  if(m) return (+m[1])*3600+(+m[2])*60+(+(m[3]||0));
+  const n=Number(t.replace(',','.'));
+  return isFinite(n)?Math.round(n*60):null;
+}
+const engShift = h => (h>=6&&h<14)?'R':((h>=14&&h<22)?'O':'N');
+const ENG_SHIFT_LBL = {R:'Ranní',O:'Odpolední',N:'Noční'};
+
+/* ---------- rozpoznání sloupců ---------- */
+const ENG_HEAD = {
+  seg:    ['segment','anlage','linie','line','stroj','linka','machine'],
+  reason: ['reason','grund','duvod','důvod'],
+  start:  ['start time','start','beginn','zacatek','začátek','od'],
+  end:    ['end time','end','ende','konec','do'],
+  dur:    ['duration','dauer','trvani','trvání'],
+  net:    ['net duration','net','netto'],
+  comment:['comment','bemerkung','poznamka','poznámka','note']
+};
+/* Vstup: pole řádků. Výstup: {ok, rows, bad} nebo {ok:false, err} */
+function engParse(aoa){
+  const norm = s => String(s??'').trim().toLowerCase();
+  let hi=-1, map=null;
+  for(let i=0;i<Math.min(aoa.length,30);i++){
+    const cells=(aoa[i]||[]).map(norm), m={};
+    for(const key of Object.keys(ENG_HEAD)){
+      const idx=cells.findIndex(c=>c && ENG_HEAD[key].some(h=>c===h));
+      if(idx>=0) m[key]=idx;
+    }
+    if(m.seg!=null && m.reason!=null && m.start!=null){ hi=i; map=m; break; }
+  }
+  if(hi<0) return {ok:false, err:'V souboru nejsou sloupce Segment, Reason a Start time. Je to opravdu report prostojů ze Symesticu?'};
+  const out=[], bad=[];
+  for(let i=hi+1;i<aoa.length;i++){
+    const r=aoa[i]||[];
+    const seg=String(r[map.seg]??'').trim();
+    if(!seg) continue;
+    const st=engTime(r[map.start]);
+    if(!st){ bad.push({line:i+1, why:'nečitelný začátek'}); continue; }
+    const en = map.end!=null ? engTime(r[map.end]) : null;
+    let sec = map.dur!=null ? engDur(r[map.dur]) : null;     // primárně sloupec Duration ze Symesticu
+    if(sec==null && en && en.ms>st.ms) sec = Math.round((en.ms-st.ms)/1000);
+    if(sec==null||sec<0){ bad.push({line:i+1, why:'nečitelné trvání'}); continue; }
+    const net = map.net!=null ? engDur(r[map.net]) : null;
+    const reason = String(r[map.reason]??'').trim() || '00 Unknown';
+    out.push({seg, reason, group:engGroup(reason), co:engIsChangeover(reason),
+      start:st.iso, end:en?en.iso:'', date:st.date, shift:engShift(st.hour),
+      sec, net:(net==null?sec:net),
+      comment: map.comment!=null ? String(r[map.comment]??'').trim().slice(0,500) : '',
+      _id:`${st.date}_${engSlug(seg)}_${Math.round(st.ms/1000)}`});
+  }
+  return {ok:true, rows:out, bad};
+}
+/* Denní souhrn z pole prostojů */
+function engAggregate(list){
+  const d={sec:0, net:0, cnt:0, segs:{}, groups:{}, reasons:{}, shifts:{}, co:{sec:0,cnt:0}};
+  for(const e of list){
+    const sec=Number(e.sec)||0, net=Number(e.net)||sec;
+    d.sec+=sec; d.net+=net; d.cnt++;
+    const sk=engSlug(e.seg), gk=engSlug(e.group||engGroup(e.reason)), rk=engSlug(e.reason);
+    d.segs[sk]    = d.segs[sk]    || {label:e.seg,sec:0,net:0,cnt:0};
+    d.groups[gk]  = d.groups[gk]  || {label:e.group||engGroup(e.reason),sec:0,cnt:0};
+    d.reasons[rk] = d.reasons[rk] || {label:e.reason,sec:0,cnt:0};
+    d.shifts[e.shift] = d.shifts[e.shift] || {sec:0,cnt:0};
+    d.segs[sk].sec+=sec; d.segs[sk].net+=net; d.segs[sk].cnt++;
+    d.groups[gk].sec+=sec; d.groups[gk].cnt++;
+    d.reasons[rk].sec+=sec; d.reasons[rk].cnt++;
+    d.shifts[e.shift].sec+=sec; d.shifts[e.shift].cnt++;
+    if(e.co){ d.co.sec+=sec; d.co.cnt++; }
+  }
+  return d;
+}
+
+/* ---------- stav modulu ---------- */
+let engTab='dash';                 // dash | list | imp
+let engDays=[];                    // denní souhrny z dt_days
+let engEvents=[];                  // jednotlivé prostoje (jen když je otevřená záložka Prostoje)
+let engRange=7;                    // kolik dní zpět
+let engLoaded=false, engBusy='', engErr='';
+let engEvLoaded='', engEvMore=false;
+let engF={seg:'',group:'',shift:'',q:''};
+let engImp={step:1, name:'', rows:null, bad:[], err:'', prog:'', done:null};
+let engHistory=[];
+
+const canEngImport = () => P().admin;
+const engDateFrom = n => { const d=new Date(); d.setDate(d.getDate()-(n-1)); return d.toISOString().slice(0,10); };
+const engHours = sec => (sec/3600);
+function engFmt(sec){
+  if(!sec) return '0 min';
+  if(sec<3600) return Math.round(sec/60)+' min';
+  return num(sec/3600,1)+' h';
+}
+const engDayCz = d => String(d).slice(8,10).replace(/^0/,'')+'. '+String(d).slice(5,7).replace(/^0/,'')+'.';
+
+/* ---------- načítání z Firestore ---------- */
+async function engLoadDays(force){
+  if(engLoaded && !force) return;
+  engBusy='Načítám souhrny…'; engErr=''; render();
+  try{
+    const qs = await getDocs(query(collection(db,'dt_days'), where('date','>=',engDateFrom(engRange)), orderBy('date','desc')));
+    engDays = qs.docs.map(d=>Object.assign({date:d.id}, d.data()));
+    const hs = await getDocs(query(collection(db,'dt_imports'), orderBy('at','desc'), limit(10)));
+    engHistory = hs.docs.map(d=>Object.assign({_id:d.id}, d.data()));
+    engLoaded=true;
+  }catch(e){ engErr = engRuleHint(e); }
+  engBusy=''; render();
+}
+async function engLoadEvents(){
+  const from = engDateFrom(engRange);
+  if(engEvLoaded===from) return;
+  engBusy='Načítám prostoje…'; engErr=''; render();
+  try{
+    const qs = await getDocs(query(collection(db,'downtimes'), where('date','>=',from), orderBy('date','desc'), limit(1200)));
+    engEvents = qs.docs.map(d=>Object.assign({_id:d.id}, d.data())).sort((a,b)=>String(b.start).localeCompare(String(a.start)));
+    engEvMore = qs.docs.length>=1200;
+    engEvLoaded = from;
+  }catch(e){ engErr = engRuleHint(e); }
+  engBusy=''; render();
+}
+function engRuleHint(e){
+  const m = String(e&&e.message||e);
+  if(/permission|insufficient/i.test(m))
+    return 'Do prostojů zatím nevidím — ve Firebase konzoli je potřeba publikovat pravidla pro kolekce downtimes, dt_days a dt_imports (Firestore → Rules → Publish).';
+  return 'Nepodařilo se načíst data: '+m;
+}
+
+/* SheetJS se stahuje, až když se opravdu importuje — aplikaci to nezdržuje. */
+let engXlsxP=null;
+function engLoadXlsx(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(engXlsxP) return engXlsxP;
+  engXlsxP = new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+    s.onload=()=>res(window.XLSX);
+    s.onerror=()=>rej(new Error('Nepodařilo se stáhnout knihovnu pro čtení Excelu. Zkus report uložit jako CSV a nahrát znovu — CSV umí aplikace přečíst i bez ní.'));
+    document.head.appendChild(s);
+  });
+  return engXlsxP;
+}
+/* Jednoduché čtení CSV (záloha, když je Excel nedostupný) */
+function engCsvToAoa(text){
+  const rows=[]; let row=[], cur='', q=false;
+  const push=()=>{row.push(cur);cur='';};
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"') q=true;
+    else if(c===','||c===';'||c==='\t') push();
+    else if(c==='\n'){ push(); rows.push(row); row=[]; }
+    else if(c!=='\r') cur+=c;
+  }
+  push(); if(row.length>1||row[0]) rows.push(row);
+  return rows;
+}
+async function engReadFile(file){
+  const name=(file.name||'').toLowerCase();
+  if(name.endsWith('.csv')||name.endsWith('.txt')){
+    const txt = await file.text();
+    return engCsvToAoa(txt);
+  }
+  const XLSX = await engLoadXlsx();
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf,{cellDates:false});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws,{header:1, raw:true, defval:null, blankrows:false});
+}
+
+/* ---------- zápis importu ---------- */
+async function engRunImport(){
+  const list = engImp.rows||[];
+  if(!list.length) return;
+  const dates = [...new Set(list.map(r=>r.date))].sort();
+  try{
+    /* 1) prostoje po dávkách — stejné id = přepis, takže dvojí import nic nezduplikuje */
+    for(let i=0;i<list.length;i+=400){
+      const chunk=list.slice(i,i+400), b=writeBatch(db);
+      chunk.forEach(e=>{
+        const {_id,...data}=e;
+        b.set(doc(db,'downtimes',_id), data);
+      });
+      await b.commit();
+      engImp.prog=`Zapisuji prostoje… ${Math.min(i+400,list.length)} z ${list.length}`; render();
+    }
+    /* 2) denní souhrny — vždy přepočítané z toho, co je v databázi */
+    for(let i=0;i<dates.length;i++){
+      const d=dates[i];
+      engImp.prog=`Počítám souhrn za ${engDayCz(d)} (${i+1} z ${dates.length})…`; render();
+      const qs = await getDocs(query(collection(db,'downtimes'), where('date','==',d)));
+      const day = engAggregate(qs.docs.map(x=>x.data()));
+      await setDoc(doc(db,'dt_days',d), Object.assign({date:d, updated:new Date().toISOString()}, day));
+    }
+    /* 3) záznam o importu */
+    await addDoc(collection(db,'dt_imports'), {
+      file: engImp.name, rows: list.length, bad: engImp.bad.length,
+      from: dates[0], to: dates[dates.length-1], days: dates.length,
+      at: new Date().toISOString(), by: me.uid, byName: me.name
+    });
+    engImp.done = {rows:list.length, days:dates.length, from:dates[0], to:dates[dates.length-1]};
+    engImp.step=3; engImp.prog='';
+    engLoaded=false; engEvLoaded='';
+    await engLoadDays(true);
+    toast('Import hotový — '+list.length+' prostojů.','ok');
+  }catch(e){
+    engImp.prog=''; engImp.err = engRuleHint(e); render();
+  }
+}
+
+/* ---------- souhrny pro přehled ---------- */
+function engTotals(){
+  const t={sec:0,net:0,cnt:0,segs:{},groups:{},reasons:{},shifts:{},co:{sec:0,cnt:0}};
+  for(const d of engDays){
+    t.sec+=d.sec||0; t.net+=d.net||0; t.cnt+=d.cnt||0;
+    t.co.sec+=(d.co&&d.co.sec)||0; t.co.cnt+=(d.co&&d.co.cnt)||0;
+    for(const key of ['segs','groups','reasons']){
+      for(const [k,v] of Object.entries(d[key]||{})){
+        const o = t[key][k] || (t[key][k]={label:v.label||k,sec:0,net:0,cnt:0});
+        o.sec+=v.sec||0; o.net+=v.net||0; o.cnt+=v.cnt||0;
+      }
+    }
+    for(const [k,v] of Object.entries(d.shifts||{})){
+      const o=t.shifts[k]||(t.shifts[k]={sec:0,cnt:0}); o.sec+=v.sec||0; o.cnt+=v.cnt||0;
+    }
+  }
+  return t;
+}
+const engTop = (obj,n) => Object.values(obj||{}).sort((a,b)=>b.sec-a.sec).slice(0,n||99);
+
+/* vodorovné pruhy */
+function engBars(items,opt){
+  const o=Object.assign({color:'#1b4b8f', max:0, unit:'h', sub:true},opt||{});
+  if(!items.length) return `<div class="empty">Zatím žádná data.</div>`;
+  const max=o.max||Math.max(...items.map(i=>i.sec))||1;
+  return `<div class="engbars">`+items.map(i=>`
+    <div class="engbar">
+      <div class="nm" title="${esc(i.label)}">${esc(i.label)}</div>
+      <div class="tr"><i style="width:${Math.max(1,i.sec/max*100).toFixed(1)}%;background:${i.color||o.color}"></i></div>
+      <div class="vl">${engFmt(i.sec)}${o.sub?`<span class="muted"> · ${i.cnt}×</span>`:''}</div>
+    </div>`).join('')+`</div>`;
+}
+/* denní vývoj — sloupce */
+function engTrend(){
+  const days=engDays.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  if(!days.length) return '';
+  const W=720,H=170,ml=44,mr=10,mt=12,mb=30,iw=W-ml-mr,ih=H-mt-mb;
+  const peak=Math.max(...days.map(d=>d.sec))||1;
+  const nice=[1,2,5,10,20,25,50,100,200,250,500,1000];
+  const stepH=nice.find(n=>n*3>=peak/3600)||Math.ceil(peak/3600/3);
+  const max=stepH*3*3600;
+  const step=iw/days.length, bw=Math.min(46,step-8);
+  let g='';
+  for(let i=0;i<=3;i++){const y=mt+ih-ih*i/3;
+    g+=`<line x1="${ml}" y1="${y}" x2="${ml+iw}" y2="${y}" stroke="#eef1f5"/>
+        <text x="${ml-6}" y="${y+3}" text-anchor="end" font-size="10" fill="#6b7a90">${stepH*i} h</text>`;}
+  const bars=days.map((d,i)=>{
+    const h=ih*d.sec/max, x=ml+step*i+(step-bw)/2, y=mt+ih-h;
+    return `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(1,h)}" rx="3" fill="#1b4b8f"><title>${esc(engDayCz(d.date))} — ${engFmt(d.sec)}, ${d.cnt} událostí</title></rect>
+      <text x="${x+bw/2}" y="${mt+ih+15}" text-anchor="middle" font-size="10" fill="#6b7a90">${engDayCz(d.date)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="engchart" role="img" aria-label="Prostoje po dnech">${g}${bars}
+    <line x1="${ml}" y1="${mt+ih}" x2="${ml+iw}" y2="${mt+ih}" stroke="#c8d3e0"/></svg>`;
+}
+
+/* ---------- obrazovky modulu ---------- */
+function engShellView(){
+  const sub = engTab==='dash'?engDash(): engTab==='list'?engList(): engImport();
+  return `
+  <div class="engbar-top">
+    <button class="tab ${engTab==='dash'?'active':''}" data-a="eng-tab" data-v="dash">Přehled a KPI</button>
+    <button class="tab ${engTab==='list'?'active':''}" data-a="eng-tab" data-v="list">Prostoje</button>
+    ${canEngImport()?`<button class="tab ${engTab==='imp'?'active':''}" data-a="eng-tab" data-v="imp">Import ze Symesticu</button>`:''}
+    <div class="spacer">
+      <span class="muted" style="font-size:11.5px">Období:</span>
+      ${[7,14,30].map(n=>`<button class="rangebtn ${engRange===n?'on':''}" data-a="eng-range" data-v="${n}">${n} dní</button>`).join('')}
+      <button class="btn-ghost" data-a="eng-reload">↻ Načíst znovu</button>
+    </div>
+  </div>
+  ${engErr?`<div class="notice warn">${esc(engErr)}</div>`:''}
+  ${engBusy?`<div class="notice">${esc(engBusy)}</div>`:''}
+  ${sub}`;
+}
+
+function engEmpty(){
+  return `<div class="panel"><div class="body" style="text-align:center;padding:34px 18px">
+    <div style="font-size:34px">📊</div>
+    <div style="font-size:17px;font-weight:800;margin:8px 0 6px">Zatím tu nejsou žádné prostoje</div>
+    <p class="muted" style="max-width:520px;margin:0 auto 14px">
+      Vyjeď v Symesticu report prostojů (Downtimes) za období, ulož ho do Excelu
+      a nahraj ho v záložce <b>Import ze Symesticu</b>. Přehled a KPI se spočítají samy.</p>
+    ${canEngImport()?`<button class="btn-primary" data-a="eng-tab" data-v="imp">Přejít na import</button>`
+      :`<p class="muted">Import dělá administrátor.</p>`}
+  </div></div>`;
+}
+
+function engDash(){
+  if(!engDays.length) return engEmpty();
+  const t=engTotals();
+  const segs=engTop(t.segs,12), groups=engTop(t.groups);
+  const unknown=Object.values(t.groups||{}).find(g=>g.label===ENG_UNKNOWN);
+  const unkPct = t.sec? Math.round((unknown?unknown.sec:0)/t.sec*100):0;
+  const coAvg = t.co.cnt? Math.round(t.co.sec/t.co.cnt/60):0;
+  const worst = segs[0];
+  const days = engDays.length;
+  return `
+  <div class="cards">
+    <div class="kcard" style="border-left-color:#1b4b8f">
+      <div class="lbl">Prostoje celkem</div>
+      <div class="val">${num(t.sec/3600,0)}<small> h</small></div>
+      <div class="note">${t.cnt.toLocaleString('cs-CZ')} událostí za ${days} ${days===1?'den':(days<5?'dny':'dní')}</div>
+    </div>
+    <div class="kcard" style="border-left-color:#c0392b">
+      <div class="lbl">Nejhorší linka</div>
+      <div class="val" style="font-size:17px;line-height:1.25;margin-top:8px">${esc(worst?worst.label:'—')}</div>
+      <div class="note">${worst?engFmt(worst.sec)+' · '+worst.cnt+' událostí':''}</div>
+    </div>
+    <div class="kcard" style="border-left-color:#b7791f">
+      <div class="lbl">Changeover time</div>
+      <div class="val">${coAvg}<small> min</small></div>
+      <div class="note">průměr na přestavbu · ${t.co.cnt}× · celkem ${engFmt(t.co.sec)}</div>
+    </div>
+    <div class="kcard ${unkPct>10?'':''}" style="border-left-color:${unkPct>10?'#c0392b':'#6b7a90'}">
+      <div class="lbl">Nezařazené prostoje</div>
+      <div class="val">${unkPct}<small> %</small></div>
+      <div class="note">${engFmt(unknown?unknown.sec:0)} bez důvodu (00 Unknown)</div>
+    </div>
+    <div class="kcard soon"><div class="lbl">Scrap</div>
+      <div class="val">—</div>
+      <div class="note">čeká na report ze Symesticu</div></div>
+    <div class="kcard soon"><div class="lbl">Cycle time linky</div>
+      <div class="val">—</div>
+      <div class="note">čeká na report ze Symesticu</div></div>
+  </div>
+
+  <div class="enggrid">
+    <div class="panel">
+      <h2>Prostoje po linkách<span class="right">${Object.keys(t.segs).length} linek · TOP 12</span></h2>
+      <div class="body">${engBars(segs,{color:'#1b4b8f'})}</div>
+    </div>
+    <div class="panel">
+      <h2>Podle důvodu</h2>
+      <div class="body">${engBars(groups.map(g=>Object.assign({},g,{color:ENG_GROUP_CLS[g.label]||'#6b7a90'})),{})}</div>
+    </div>
+  </div>
+
+  <div class="enggrid">
+    <div class="panel">
+      <h2>Vývoj po dnech<span class="right">celkem přes všechny linky</span></h2>
+      <div class="body">${engTrend()}</div>
+    </div>
+    <div class="panel">
+      <h2>Podle směny</h2>
+      <div class="body">${engBars(['R','O','N'].filter(k=>t.shifts[k]).map(k=>({label:ENG_SHIFT_LBL[k],sec:t.shifts[k].sec,cnt:t.shifts[k].cnt})),{color:'#0d7377'})}
+        <div class="notice" style="margin-top:12px">Směny se počítají podle času začátku: ranní 6–14, odpolední 14–22, noční 22–6.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>TOP 10 důvodů prostoje<span class="right">konkrétní kódy ze Symesticu</span></h2>
+    <div class="body">${engBars(engTop(t.reasons,10),{color:'#41506b'})}</div>
+  </div>`;
+}
+
+function engList(){
+  if(!engEvents.length && !engBusy) return engEmpty();
+  let r=engEvents.slice();
+  if(engF.seg) r=r.filter(x=>x.seg===engF.seg);
+  if(engF.group) r=r.filter(x=>(x.group||'')===engF.group);
+  if(engF.shift) r=r.filter(x=>x.shift===engF.shift);
+  if(engF.q){const q=engF.q.toLowerCase();
+    r=r.filter(x=>[x.seg,x.reason,x.comment].join(' ').toLowerCase().includes(q));}
+  const segList=[...new Set(engEvents.map(x=>x.seg))].sort((a,b)=>a.localeCompare(b,'cs'));
+  const grpList=[...new Set(engEvents.map(x=>x.group||''))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'cs'));
+  const sum=r.reduce((s,x)=>s+(x.sec||0),0);
+  const show=r.slice(0,300);
+  return `
+  <div class="panel">
+    <h2>Prostoje<span class="right">${r.length.toLocaleString('cs-CZ')} záznamů · ${engFmt(sum)}</span></h2>
+    <div class="filters">
+      <input class="grow" id="eng-q" placeholder="Hledat v linkách, důvodech a poznámkách…" value="${esc(engF.q)}">
+      <select id="eng-seg"><option value="">Všechny linky</option>${segList.map(s=>`<option ${engF.seg===s?'selected':''}>${esc(s)}</option>`).join('')}</select>
+      <select id="eng-group"><option value="">Všechny důvody</option>${grpList.map(s=>`<option ${engF.group===s?'selected':''}>${esc(s)}</option>`).join('')}</select>
+      <select id="eng-shift"><option value="">Všechny směny</option>${['R','O','N'].map(k=>`<option value="${k}" ${engF.shift===k?'selected':''}>${ENG_SHIFT_LBL[k]}</option>`).join('')}</select>
+      <button class="btn-ghost" data-a="eng-export">⭳ Export CSV</button>
+    </div>
+    ${engEvMore?`<div class="notice warn">Zobrazuji posledních 1 200 prostojů z vybraného období. Pro starší data zkrať období nebo použij export.</div>`:''}
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Datum</th><th>Sm.</th><th>Linka / stroj</th><th>Od</th><th>Do</th><th>Trvání</th><th>Skupina</th><th>Důvod</th><th>Poznámka</th></tr></thead>
+        <tbody>${show.map(e=>`
+          <tr class="${e.sec>=3600?'crit':''}">
+            <td data-label="Datum">${engDayCz(e.date)}</td>
+            <td data-label="Směna">${e.shift||''}</td>
+            <td data-label="Linka"><b>${esc(e.seg)}</b></td>
+            <td data-label="Od">${String(e.start).slice(11,16)}</td>
+            <td data-label="Do">${e.end?String(e.end).slice(11,16):'—'}</td>
+            <td data-label="Trvání" class="num"><b>${engFmt(e.sec)}</b></td>
+            <td data-label="Skupina"><span class="badge b-grey">${esc(e.group||'—')}</span></td>
+            <td data-label="Důvod" class="desc">${esc(e.reason)}</td>
+            <td data-label="Poznámka" class="desc muted">${esc(e.comment||'')}</td>
+          </tr>`).join('') || `<tr><td colspan="9" class="empty">Nic neodpovídá filtru.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    ${r.length>300?`<div class="legend">Zobrazeno prvních 300 řádků z ${r.length.toLocaleString('cs-CZ')}. Zúži filtr nebo si data vyexportuj.</div>`:''}
+  </div>`;
+}
+
+function engImport(){
+  if(!canEngImport()) return `<div class="notice warn">Import dělá administrátor.</div>`;
+  const s=engImp;
+  let body='';
+  if(s.step===1){
+    body=`<div class="body">
+      <div class="engdrop" id="eng-drop">
+        <div class="big">Přetáhni sem report prostojů ze Symesticu</div>
+        <div style="margin:8px 0">nebo <label class="filebtn" style="display:inline-block">Vybrat soubor<input type="file" id="eng-file" accept=".xlsx,.xls,.csv"></label></div>
+        <div class="muted" style="font-size:12px">Formáty <b>.xlsx</b> a <b>.csv</b> · soubor se zpracuje přímo v prohlížeči, nikam se neposílá.</div>
+      </div>
+      ${s.prog?`<div class="notice" style="margin-top:12px">${esc(s.prog)}</div>`:''}
+      ${s.err?`<div class="notice warn" style="margin-top:12px">${esc(s.err)}</div>`:''}
+      <div class="notice" style="margin-top:12px"><b>Jak na to:</b> v Symesticu vyjeď report <b>Downtimes</b> za období → export do Excelu → soubor přetáhni sem.
+      Sloupce Segment, Reason, Start time, End time, Duration, Net duration a Comment se poznají samy.</div>
+      <div class="notice" style="margin-top:8px">Stejný prostoj se nikdy nezaloží dvakrát — každý má vlastní klíč z data, linky a času začátku.
+      Můžeš tedy klidně nahrát překrývající se období nebo tentýž soubor znovu.</div>
+    </div>`;
+  }
+  if(s.step===2){
+    const rows=s.rows||[];
+    const dates=[...new Set(rows.map(r=>r.date))].sort();
+    const segs=[...new Set(rows.map(r=>r.seg))].sort((a,b)=>a.localeCompare(b,'cs'));
+    const unk=rows.filter(r=>r.group===ENG_UNKNOWN);
+    const tot=rows.reduce((a,r)=>a+r.sec,0);
+    body=`<div class="body">
+      <div class="file"><span class="nm">${esc(s.name)}</span>
+        <span class="sz">${rows.length.toLocaleString('cs-CZ')} prostojů · ${dates.length} dní · ${segs.length} linek</span>
+        <button class="btn-ghost" style="margin-left:auto" data-a="eng-imp-reset">Vybrat jiný soubor</button></div>
+      <div class="cards">
+        <div class="kcard" style="border-left-color:#1f9254"><div class="lbl">Načteno</div><div class="val">${rows.length.toLocaleString('cs-CZ')}</div><div class="note">prostojů celkem ${engFmt(tot)}</div></div>
+        <div class="kcard" style="border-left-color:#1b4b8f"><div class="lbl">Období</div><div class="val" style="font-size:17px;margin-top:8px">${engDayCz(dates[0])} – ${engDayCz(dates[dates.length-1])}</div><div class="note">${dates.length} dní</div></div>
+        <div class="kcard" style="border-left-color:#6b7a90"><div class="lbl">Nezařazené důvody</div><div class="val">${unk.length}</div><div class="note">projdou, jen se počítají zvlášť</div></div>
+        <div class="kcard" style="border-left-color:${s.bad.length?'#c0392b':'#1f9254'}"><div class="lbl">Nečitelné řádky</div><div class="val">${s.bad.length}</div><div class="note">${s.bad.length?'přeskočí se':'nic neblokuje import'}</div></div>
+      </div>
+      ${s.err?`<div class="notice warn">${esc(s.err)}</div>`:''}
+      <div class="tblwrap" style="border:1px solid var(--line);border-radius:var(--radius)">
+        <table><thead><tr><th>Datum</th><th>Sm.</th><th>Linka</th><th>Od</th><th>Trvání</th><th>Skupina</th><th>Důvod</th></tr></thead>
+        <tbody>${rows.slice(0,8).map(e=>`<tr>
+          <td data-label="Datum">${engDayCz(e.date)}</td><td data-label="Směna">${e.shift}</td>
+          <td data-label="Linka"><b>${esc(e.seg)}</b></td><td data-label="Od">${e.start.slice(11,16)}</td>
+          <td data-label="Trvání" class="num">${engFmt(e.sec)}</td>
+          <td data-label="Skupina"><span class="badge b-grey">${esc(e.group)}</span></td>
+          <td data-label="Důvod" class="desc">${esc(e.reason)}</td></tr>`).join('')}
+        <tr><td colspan="7" class="muted" style="text-align:center">… a dalších ${(rows.length-8).toLocaleString('cs-CZ')} řádků</td></tr>
+        </tbody></table>
+      </div>
+      <div class="notice" style="margin-top:12px">Linky v souboru: ${segs.map(x=>esc(x)).join(' · ')}</div>
+    </div>
+    <div class="engfoot">
+      <button class="btn-ghost" data-a="eng-imp-reset">Zpět</button>
+      ${s.prog?`<span class="muted">${esc(s.prog)}</span>`:''}
+      <span style="margin-left:auto"></span>
+      <button class="btn-ok" data-a="eng-imp-run" ${s.prog?'disabled':''}>${s.prog?'Importuji…':'Importovat '+rows.length.toLocaleString('cs-CZ')+' prostojů'}</button>
+    </div>`;
+  }
+  if(s.step===3){
+    const d=s.done||{};
+    body=`<div class="body" style="text-align:center;padding:30px 18px">
+      <div style="font-size:40px;line-height:1;color:#1f9254">✓</div>
+      <div style="font-size:18px;font-weight:800;margin:8px 0 6px">Import hotový</div>
+      <div class="muted">Uloženo <b>${(d.rows||0).toLocaleString('cs-CZ')}</b> prostojů za ${d.days} dní (${engDayCz(d.from||'')} – ${engDayCz(d.to||'')}).</div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn-primary" data-a="eng-tab" data-v="dash">Zobrazit přehled</button>
+        <button class="btn-ghost" data-a="eng-imp-reset">Importovat další soubor</button>
+      </div>
+    </div>`;
+  }
+  return `
+  <div class="panel">
+    <h2>Import ze Symesticu<span class="right">krok ${s.step} ze 3</span></h2>
+    ${body}
+  </div>
+  <div class="panel">
+    <h2>Historie importů</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Kdy</th><th>Kdo</th><th>Soubor</th><th>Prostojů</th><th>Období</th></tr></thead>
+      <tbody>${engHistory.map(h=>`<tr>
+        <td data-label="Kdy">${esc(String(h.at||'').slice(0,16).replace('T',' '))}</td>
+        <td data-label="Kdo">${esc(h.byName||'')}</td>
+        <td data-label="Soubor" class="desc">${esc(h.file||'')}</td>
+        <td data-label="Prostojů" class="num">${(h.rows||0).toLocaleString('cs-CZ')}</td>
+        <td data-label="Období">${engDayCz(h.from||'')} – ${engDayCz(h.to||'')}</td>
+      </tr>`).join('') || `<tr><td colspan="5" class="empty">Zatím žádný import.</td></tr>`}
+      </tbody></table></div>
+  </div>`;
+}
+
+/* export prostojů do CSV */
+function engExportCsv(){
+  let r=engEvents.slice();
+  if(engF.seg) r=r.filter(x=>x.seg===engF.seg);
+  if(engF.group) r=r.filter(x=>(x.group||'')===engF.group);
+  if(engF.shift) r=r.filter(x=>x.shift===engF.shift);
+  if(engF.q){const q=engF.q.toLowerCase(); r=r.filter(x=>[x.seg,x.reason,x.comment].join(' ').toLowerCase().includes(q));}
+  const head=['Datum','Směna','Linka','Začátek','Konec','Trvání (min)','Netto (min)','Skupina','Důvod','Poznámka'];
+  const line=a=>a.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';');
+  const csv=[line(head)].concat(r.map(e=>line([e.date,e.shift,e.seg,String(e.start).slice(11,19),
+    e.end?String(e.end).slice(11,19):'',Math.round(e.sec/60),Math.round((e.net||e.sec)/60),e.group,e.reason,e.comment||'']))).join('\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='prostoje_'+today()+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+/* ---------- ovládání modulu (filtry, nahrání souboru) ---------- */
+function engBind(){
+  if(tab!=='eng') return;
+  const q=document.getElementById('eng-q');
+  if(q) q.oninput=()=>{engF.q=q.value;const pos=q.selectionStart;render();
+    const n=document.getElementById('eng-q'); if(n){n.focus();n.setSelectionRange(pos,pos);}};
+  [['eng-seg','seg'],['eng-group','group'],['eng-shift','shift']].forEach(([id,k])=>{
+    const el=document.getElementById(id); if(el) el.onchange=()=>{engF[k]=el.value;render();};
+  });
+  const fi=document.getElementById('eng-file');
+  if(fi) fi.onchange=()=>{ if(fi.files&&fi.files[0]) engTakeFile(fi.files[0]); };
+  const dz=document.getElementById('eng-drop');
+  if(dz){
+    ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('hot');}));
+    ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('hot');}));
+    dz.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) engTakeFile(f);});
+  }
+}
+async function engTakeFile(file){
+  if(!canEngImport()) return;
+  engImp.err=''; engImp.name=file.name; engImp.prog='Čtu soubor…'; render();
+  try{
+    const aoa = await engReadFile(file);
+    const res = engParse(aoa);
+    if(!res.ok){ engImp.prog=''; engImp.err=res.err; render(); return; }
+    if(!res.rows.length){ engImp.prog=''; engImp.err='V souboru nejsou žádné prostoje ke zpracování.'; render(); return; }
+    engImp.rows=res.rows; engImp.bad=res.bad; engImp.step=2; engImp.prog='';
+  }catch(e){ engImp.prog=''; engImp.err=String((e&&e.message)||e); }
+  render();
+}
+
+/* ==========================================================
    FIREBASE — auth, načítání, zápis
    ========================================================== */
 let unsubRows=null, unsubUsers=null;
@@ -381,7 +1047,9 @@ onAuthStateChanged(auth, async (user)=>{
   }catch(e){ fatalErr = 'Chyba při načítání dat: '+e.message; render(); }
 });
 
-function teardown(){ if(unsubRows){unsubRows();unsubRows=null;} if(unsubUsers){unsubUsers();unsubUsers=null;} rows=[]; usersList=[]; dataReady=false; }
+function teardown(){ if(unsubRows){unsubRows();unsubRows=null;} if(unsubUsers){unsubUsers();unsubUsers=null;} rows=[]; usersList=[]; dataReady=false;
+  engDays=[]; engEvents=[]; engHistory=[]; engLoaded=false; engEvLoaded=''; engTab='dash'; engErr=''; engBusy='';
+  engImp={step:1,name:'',rows:null,bad:[],err:'',prog:'',done:null}; }
 
 async function ensureConfig(){
   const ref = doc(db,'meta','config');
@@ -502,12 +1170,13 @@ function shell(){
   </header>
   <div class="tabbar">
     <button class="tab ${tab==='pozadavky'?'active':''}" data-a="tab" data-v="pozadavky">Požadavky</button>
+    <button class="tab teal ${tab==='eng'?'active':''}" data-a="tab" data-v="eng">🏭 Engineering</button>
     ${P().admin?`<button class="tab violet ${tab==='admin'?'active':''}" data-a="tab" data-v="admin">⚙ Administrace</button>`:''}
     <div class="spacer">
-      <button class="btn-ghost" data-a="export">⭳ Export CSV</button>
+      ${tab==='pozadavky'?`<button class="btn-ghost" data-a="export">⭳ Export CSV</button>`:''}
     </div>
   </div>
-  <main>${tab==='admin'?adminView():listView()}</main>
+  <main>${tab==='admin'?adminView():(tab==='eng'?engShellView():listView())}</main>
   ${editing?modalView():''}`;
 }
 
@@ -557,6 +1226,13 @@ function listView(){
   </div>`;
   const anyFilter = filters.q||filters.status||filters.priorita||filters.ucet||filters.usek||filters.od||filters.do||filters.mine;
   return `
+  <div class="tiles">
+    <button class="tile" data-a="tab" data-v="eng">
+      <span class="ic">🏭</span>
+      <span><span class="tt">Engineering</span><span class="ts">Prostoje, KPI a import ze Symesticu</span></span>
+      <span class="go">Otevřít →</span>
+    </button>
+  </div>
   <div class="cards">
     ${card('Otevřené požadavky',open,'poptáno · nový · ve schvalování','#16355f')}
     ${card('K poptání u dodavatele',toAsk,'nové požadavky bez ceny',toAsk?'#b7791f':'#6b7a90')}
@@ -949,6 +1625,7 @@ function bind(){
   const us=document.getElementById('e-usek');if(us)us.onchange=()=>{collect();editing.stroj='';render();};
   const ns=document.getElementById('e-newstock');if(ns)ns.onchange=()=>{collect();render();};
   const lp=document.getElementById('lg-pass');if(lp)lp.onkeydown=e=>{if(e.key==='Enter')act('login');};
+  engBind();
   if(qrOpen) startQr();
 }
 
@@ -965,7 +1642,29 @@ async function act(a,v,el,ev){
       return;
     }
     case 'logout': await signOut(auth); return;
-    case 'tab': tab=v; break;
+    case 'tab': tab=v; if(v==='eng') engLoadDays(); break;
+
+    /* ----- modul Engineering ----- */
+    case 'eng-tab':
+      engTab=v;
+      if(v==='list') engLoadEvents();
+      if(v==='imp' && engImp.step===3) engImp={step:1,name:'',rows:null,bad:[],err:'',prog:'',done:null};
+      break;
+    case 'eng-range':
+      engRange=Number(v)||7; engLoaded=false; engEvLoaded='';
+      engLoadDays(true); if(engTab==='list') engLoadEvents();
+      break;
+    case 'eng-reload':
+      engLoaded=false; engEvLoaded='';
+      engLoadDays(true); if(engTab==='list') engLoadEvents();
+      break;
+    case 'eng-imp-reset': engImp={step:1,name:'',rows:null,bad:[],err:'',prog:'',done:null}; break;
+    case 'eng-imp-run':
+      if(!canEngImport()) return;
+      engImp.err=''; engImp.prog='Připravuji zápis…'; render();
+      await engRunImport();
+      break;
+    case 'eng-export': engExportCsv(); return;
     case 'sort': sort=(sort.col===v)?{col:v,dir:-sort.dir}:{col:v,dir:1}; break;
     case 'clear-filters': filters={q:'',status:'',priorita:'',ucet:'',usek:'',od:'',do:'',mine:false}; break;
     case 'dlg-yes':{const d=dlg;dlg=null;const val=d.kind==='prompt'?(document.getElementById('dlg-input')||{}).value||'':true;
